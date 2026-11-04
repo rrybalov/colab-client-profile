@@ -49,7 +49,14 @@ const P = {
   check: <><circle cx="12" cy="12" r="9" /><path d="M8 12.5l3 3 5-6" /></>,
   database: <><ellipse cx="12" cy="6" rx="7" ry="3" /><path d="M5 6v12c0 1.7 3.1 3 7 3M19 6v6M5 12c0 1.7 3.1 3 7 3" /><path d="M18 14l-3.5 6h7z" /><path d="M18 16.5v1.5" /></>,
   question: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2-2.5 3.5M12 16.5h.01" /></>,
-  refresh: <><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" /></>
+  refresh: <><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" /></>,
+  homeSolid: <path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z" fill="currentColor" stroke="none" />,
+  bed: <><path d="M3 20V6M21 20v-6a3 3 0 0 0-3-3h-8v6M3 17h18" /><circle cx="6.5" cy="11.5" r="1.8" /></>,
+  apartment: <><rect x="5" y="3" width="10" height="18" rx="1" /><path d="M15 9h4v12h-4M8 7h1M11 7h1M8 11h1M11 11h1M8 15h1M11 15h1M3 21h18" /></>,
+  bars: <path d="M5 4v16M10 4v16M15 4v16M20 4v16M3 4h19M3 20h19" />,
+  timeline: <path d="M3 17l6-6 4 4 8-8M14 7h7v7" />,
+  list: <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />,
+  arrowLeft: <path d="M19 12H5M11 6l-6 6 6 6" />
 };
 
 export function Icon({ name, size = 16, className = '', label }) {

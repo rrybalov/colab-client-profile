@@ -386,6 +386,265 @@ async function run(mode) {
     check('action item edit saved', db.actions.some((a) => a.text === 'Call the housing navigator today' && a.edited));
   });
 
+  // Address History. Jimothy's 47 records are the prototype's own data, so his screens are checked against the
+  // values the Replit prototype shows (with correct calendar dates: the prototype shifts date-only values back a day).
+  const periodsChip = async () => ((await count('.addr-periods')) ? (await pg.locator('.addr-periods').textContent()).replace(/\s+/g, ' ').trim() : '');
+  // Address screens remember their view, filter, sort and open row; each part starts from the defaults.
+  const freshAddressPrefs = () => pg.evaluate(() => { const p = JSON.parse(localStorage.getItem('colab.prefs') || '{}'); Object.keys(p).filter((k) => k.startsWith('address.') || k === 'sort.addresses').forEach((k) => delete p[k]); localStorage.setItem('colab.prefs', JSON.stringify(p)); });
+  await part('Address: overview', async () => {
+    await go('#client/c1/overview');
+    if ((await btn('Contact Information').getAttribute('aria-pressed')) !== 'true') await btn('Contact Information').click();
+    const kv = await text('.kv-grid');
+    check('most recent address shows', kv.includes('999 Murray Avenue, Apt 502') && kv.includes('Pittsburgh, PA 15217'), kv.slice(0, 120));
+    check('"4 Concurrent" badge', (await text('.concurrent-pill')) === '4 Concurrent');
+    check('badge tooltip text', (await pg.locator('#conc-tip-c1').textContent()) === '4 other addresses reported for the same period');
+    await pg.locator('.concurrent-pill').hover();
+    check('badge tooltip shows on hover', await pg.locator('#conc-tip-c1').isVisible());
+    check('both links show', (await btn('View Address Details').count()) === 1 && (await pg.getByRole('link', { name: 'View Full Address History' }).count()) === 1);
+    await pg.locator('.concurrent-pill').click();
+    check('badge opens Address Details', await pg.getByRole('dialog', { name: 'Address Details' }).isVisible());
+    await pg.keyboard.press('Escape');
+    check('Escape closes it', (await count('.modal')) === 0);
+  });
+
+  await part('Address: details dialog', async () => {
+    await btn('View Address Details').click();
+    const dlg = pg.getByRole('dialog', { name: 'Address Details' });
+    check('opens', await dlg.isVisible());
+    check('focus starts on the main action', (await pg.evaluate(() => document.activeElement.textContent)) === 'View Full Address History');
+    check('most recent verified heading', (await text('.modal #mrv-h')).toLowerCase() === 'most recent verified');
+    check('most recent address', (await text('.modal .addr-title')) === '999 Murray Avenue, Apt 502, Pittsburgh, PA 15217');
+    check('dates', (await text('.modal .addr-modal-body > section .addr-sub')).startsWith('Jun 1, 2025 – Present'));
+    const src = await text('.modal .addr-source-line');
+    check('source tags and as-of date', /SNAP/.test(src) && /DHS/.test(src) && src.includes('As of Jun 1, 2025'), src);
+    check('school, ward and facility lines', (await text('.modal .addr-facts')).includes('Pittsburgh City School District'));
+    check('concurrent heading with count', (await text('.modal #conc-h')).toLowerCase() === 'concurrent addresses (4)');
+    check('helper text', (await text('.modal .addr-help')) === 'Other addresses are open for this client during the same period. Sources may disagree; review before relying on a single address.');
+    const streets = await pg.locator('.modal .addr-street').allInnerTexts();
+    check('concurrent rows in prototype order', JSON.stringify(streets) === JSON.stringify(['No Fixed Address — Downtown Outreach Zone', '999 Murray Ave, Unit 500', 'PO Box 8841', '88 Pleasant View Dr']), streets);
+    const ranges = await pg.locator('.modal .addr-range').allInnerTexts();
+    check('row date ranges', JSON.stringify(ranges) === JSON.stringify(['May 2025 – Present', 'Apr 2025 – Present', 'Feb 2025 – Present', 'Jan 2025 – Present']), ranges);
+    check('every row is marked current', (await count('.modal .addr-current')) === 4);
+    check('row cities', (await pg.locator('.modal .addr-city').allInnerTexts())[3] === 'Weirton, WV 26062');
+    const tags = await pg.locator('.modal .addr-card').evaluateAll((cs) => cs.map((c) => [...c.querySelectorAll('.addr-tags .src-tag')].map((t) => t.textContent).join('/')));
+    check('row program tags', JSON.stringify(tags) === JSON.stringify(['OBH/Shelter', 'OBH/Provider', 'DHS', 'Medicare']), tags);
+    check('shelter row has the shelter icon', (await pg.locator('.modal .addr-card').first().locator('.addr-kind.is-shelter').count()) === 1);
+    const toggles = pg.locator('.modal .addr-toggle');
+    await toggles.nth(1).click();
+    check('a row expands', (await toggles.nth(1).getAttribute('aria-expanded')) === 'true');
+    const body = await text('.modal .addr-body');
+    for (const want of ['Last reported May 15, 2025', 'Pittsburgh', 'Allegheny', 'Pittsburgh City School District', 'Apr 1, 2025', 'Present', 'dmwilliams84@gmail.com', '(412) 555-0183 (Mobile)', 'Valid since Apr 1, 2025', '(412) 555-0297 (Work)', 'Mercy Behavioral Health', 'PA-OBH-MBH-00017', 'Yes']) check('details show ' + want, body.includes(want));
+    check('duration in days', /\d+ yr \d+ mo \(\d+ days\)|\d+ yr \(\d+ days\)/.test(body));
+    await toggles.nth(0).click();
+    check('only one row open at a time', (await count('.modal .addr-body')) === 1 && (await toggles.nth(1).getAttribute('aria-expanded')) === 'false');
+    await pg.locator('.modal .addr-card').first().locator('.addr-head').click({ position: { x: 5, y: 20 } });
+    check('clicking the row edge closes it too', (await count('.modal .addr-body')) === 0);
+    const snap = await pg.locator('.modal .addr-source-line .src-tip').first().locator('.tip-box').textContent();
+    check('tag tooltip names the program and its systems', snap.startsWith('SNAP — Food Assistance') && snap.includes('BNFREN'), snap);
+    await pg.locator('.modal-foot .btn-text', { hasText: 'Close' }).click();
+    check('Close closes', (await count('.modal')) === 0);
+    await btn('View Address Details').click();
+    await pg.locator('.modal .btn-primary').click();
+    await pg.waitForSelector('.addr-history');
+    check('"View Full Address History" goes to the history', pg.url().endsWith('#client/c1/address-history') && (await count('.modal')) === 0);
+  });
+
+  await part('Address: history page', async () => {
+    await go('#client/c1/overview');
+    await freshAddressPrefs();
+    await reload();
+    await pg.getByRole('link', { name: 'View Full Address History' }).click();
+    await pg.waitForSelector('.addr-history');
+    check('the link opens the history', pg.url().endsWith('#client/c1/address-history'));
+    check('page title', (await pg.title()) === 'Jimothy Jones · Address History · CoLab', await pg.title());
+    const crumbs = await text('nav[aria-label=Breadcrumb]');
+    check('breadcrumb', crumbs.includes('Home') && crumbs.includes('Client Details') && crumbs.includes('Address History'), crumbs);
+    check('heading', (await text('.addr-history h2')) === 'Address History');
+    check('summary line', (await text('.addr-history .view-head .addr-sub')) === '47 addresses on record · 5 counties/states');
+    check('concurrent periods chip', (await periodsChip()) === '⇉ 4 concurrent periods');
+    check('Timeline is the default view', (await btn('Timeline').getAttribute('aria-pressed')) === 'true');
+    check('47 address cards', (await count('.addr-card')) === 47);
+    const years = await pg.locator('.addr-year').allInnerTexts();
+    check('year headings', years.join(',') === '2023,2019,2018,2017,2015,2011,2010,2009,2008,2007,2006,2005,2004,2003,1998', years);
+    const heads = await pg.locator('.addr-period-head').allInnerTexts();
+    const wantHeads = ['Concurrent reports (6 addresses reported between Dec 2023 and Present)', 'Concurrent reports (10 addresses reported between Jun 2019 and Nov 2023)', 'Concurrent reports (6 addresses reported between Nov 2015 and Mar 2017)', 'Concurrent reports (12 addresses reported between Feb 2011 and Oct 2015)'];
+    check('concurrent groups and their spans', JSON.stringify(heads) === JSON.stringify(wantHeads), heads);
+    check('five current addresses', (await count('.addr-current')) === 5);
+    check('current streets are bold', (await count('.addr-street.is-current')) === 5);
+    check('first card is the most recent', (await text('.addr-card .addr-street')) === '999 Murray Avenue, Apt 502');
+    check('Present is green', (await pg.locator('.addr-present').first().evaluate((e) => getComputedStyle(e).color)) === 'rgb(11, 107, 88)');
+    check('at most three tags per card', await pg.locator('.addr-card').evaluateAll((cs) => cs.every((c) => c.querySelectorAll('.addr-tags .src-tag').length <= 3)));
+    check('tag colors per program', (await pg.locator('.src-tag.is-Shelter').first().evaluate((e) => getComputedStyle(e).color)) === 'rgb(155, 44, 33)');
+    const tips = await pg.locator('.addr-history .src-tip .tip-box').evaluateAll((ts) => ts.filter((t) => !(t.querySelector('.tip-title').textContent && (t.querySelector('.src-systems') || /^No specific system data available\.(• Reported \w{3} \d+, \d{4})*$/.test(t.textContent.replace(t.querySelector('.tip-title').textContent, ''))))).length);
+    check('every tag tooltip has a program name and its systems or report dates', tips === 0, tips);
+    const kinds = await pg.locator('.addr-kind').evaluateAll((ks) => [...new Set(ks.map((k) => k.className))].sort());
+    check('residence, shelter, transitional and custody icons', kinds.length === 4, kinds);
+    const first = pg.locator('.addr-card .addr-toggle').first();
+    await first.click();
+    check('a card expands', (await first.getAttribute('aria-expanded')) === 'true' && (await count('.addr-card .addr-body')) === 1);
+    check('details have both sections', (await text('.addr-card .addr-body')).includes('ADDRESS INFORMATION') || (await text('.addr-card .addr-body')).toLowerCase().includes('address information'));
+    await reload();
+    check('open card stays open after reload', (await pg.locator('.addr-card .addr-toggle').first().getAttribute('aria-expanded')) === 'true');
+    await pg.locator('.addr-card .addr-toggle').nth(2).click();
+    check('opening another closes the first', (await count('.addr-card .addr-body')) === 1 && (await pg.locator('.addr-card .addr-toggle').first().getAttribute('aria-expanded')) === 'false');
+    await pg.locator('.addr-card .addr-tags .src-tag').nth(2).click();
+    check('clicking a tag toggles its card, as in the prototype', (await count('.addr-card .addr-body')) <= 1);
+  });
+
+  await part('Address: source filter', async () => {
+    await go('#home'); await freshAddressPrefs(); await reload();
+    await go('#client/c1/address-history');
+    const pick = async (name) => { await pg.locator('.select-btn').click(); await pg.locator('.check-row', { hasText: new RegExp('^' + name + '$') }).locator('input').check(); await pg.keyboard.press('Escape'); };
+    check('all sources by default', (await text('.select-btn')) === 'All sources');
+    await pg.locator('.select-btn').click();
+    const rows = await pg.locator('.check-row').allInnerTexts();
+    check('nine programs to choose from', rows.join(',') === 'OBH,DHS,Medicare,SNAP,CYF,ACHD,Shelter,Provider,Self', rows);
+    check('no Clear all until something is chosen', (await btn('Clear all').count()) === 0);
+    await pg.keyboard.press('Escape');
+    check('Escape closes the menu', (await count('.check-row')) === 0);
+    await pick('Shelter');
+    check('label names the one program', (await text('.select-btn')) === 'Shelter');
+    check('Shelter: 7 addresses', (await count('.addr-card')) === 7);
+    check('Shelter: 1 concurrent period', (await periodsChip()) === '⇉ 1 concurrent period');
+    check('every card shown carries the program', await pg.locator('.addr-card').evaluateAll((cs) => cs.every((c) => !!c.querySelector('.src-tag.is-Shelter') || c.querySelectorAll('.addr-tags .src-tag').length === 3)));
+    check('summary still counts everything', (await text('.addr-history .view-head .addr-sub')).startsWith('47 addresses'));
+    await reload();
+    check('filter stays after reload', (await text('.select-btn')) === 'Shelter' && (await count('.addr-card')) === 7);
+    await pick('OBH');
+    check('two programs', (await text('.select-btn')) === '2 sources');
+    const db = await source();
+    const c1 = db.clients.find((c) => c.id === 'c1');
+    check('either program counts', (await count('.addr-card')) === c1.addresses.filter((a) => a.sources.includes('Shelter') || a.sources.includes('OBH')).length);
+    await pg.locator('.select-btn').click();
+    await btn('Clear all').click();
+    check('Clear all', (await text('.select-btn')) === 'All sources' && (await count('.addr-card')) === 47);
+    await pg.keyboard.press('Escape');
+    await pick('CYF');
+    const cyf = c1.addresses.filter((a) => a.sources.includes('CYF')).length;
+    check('CYF count matches the data', (await count('.addr-card')) === cyf, cyf);
+    if (cyf === 0) check('empty state', (await text('.addr-history .empty')) === 'No addresses match the current filters.');
+    await pg.locator('.select-btn').click(); await btn('Clear all').click(); await pg.keyboard.press('Escape');
+  });
+
+  await part('Address: table', async () => {
+    await go('#home'); await freshAddressPrefs(); await reload();
+    await go('#client/c1/address-history');
+    await btn('Table').click();
+    check('47 rows', (await count('.addr-row')) === 47);
+    check('"47 of 47 shown"', (await text('.addr-count')) === '47 of 47 shown');
+    check('search placeholder', (await pg.getAttribute('#addr-search', 'placeholder')) === 'Search address or city…');
+    const headers = await pg.locator('.table[aria-label="Address history"] .th').allInnerTexts();
+    check('columns', headers.map((h) => h.trim()).join(',') === 'Details,Address,Date Range,Sources,Reports', headers);
+    check('sorted newest first', (await text('.addr-row .addr-street')) === '999 Murray Avenue, Apt 502');
+    check('Date Range shows it is sorted', (await pg.locator('.th', { hasText: 'Date Range' }).getAttribute('aria-sort')) === 'descending');
+    const db = await source();
+    const c1 = db.clients.find((c) => c.id === 'c1');
+    const oldest = c1.addresses.slice().sort((a, b) => (a.start < b.start ? -1 : 1))[0];
+    await btn('Date Range', true).click();
+    check('second click sorts oldest first', (await text('.addr-row .addr-street')) === oldest.street, [await text('.addr-row .addr-street'), oldest.street]);
+    await btn('Address', true).click();
+    const byStreet = c1.addresses.map((a) => a.street).sort().reverse()[0];
+    check('a new column starts descending', (await pg.locator('.th', { hasText: 'Address' }).getAttribute('aria-sort')) === 'descending' && (await text('.addr-row .addr-street')) === byStreet, [await text('.addr-row .addr-street'), byStreet]);
+    await reload();
+    check('view and sort stay after reload', (await count('.addr-row')) === 47 && (await pg.locator('.th', { hasText: 'Address' }).getAttribute('aria-sort')) === 'descending');
+    await btn('Date Range', true).click();
+    const concurrentRows = await count('.addr-row .addr-concurrent-chip');
+    check('concurrent chip on records with a conflict note', concurrentRows === c1.addresses.filter((a) => a.conflict).length, concurrentRows);
+    check('Active chip on open records', (await count('.addr-row .addr-current')) === 5 && (await text('.addr-row .addr-current')) === 'ACTIVE');
+    const reports = await pg.locator('.addr-row .td:last-child').allInnerTexts();
+    check('report counts', reports[0].replace(/\s+/g, ' ') === '2 reports' && reports.some((r) => /^1 report$/.test(r.replace(/\s+/g, ' '))), reports.slice(0, 4));
+    await pg.fill('#addr-search', 'weirton');
+    const weirton = c1.addresses.filter((a) => /weirton/i.test(a.street + ' ' + a.city)).length;
+    check('search by city', (await count('.addr-row')) === weirton && (await text('.addr-count')) === `${weirton} of 47 shown`, weirton);
+    await pg.fill('#addr-search', 'Murray');
+    check('search by street', (await count('.addr-row')) === c1.addresses.filter((a) => /murray/i.test(a.street + a.city)).length);
+    await pg.fill('#addr-search', 'zzzz');
+    check('no-match message', (await text('.table[aria-label="Address history"]')).includes('No addresses match the current filters.') && (await text('.addr-count')) === '0 of 47 shown');
+    await pg.fill('#addr-search', '');
+    await pg.locator('.addr-row').first().click();
+    check('a row expands', (await count('.addr-detail-row')) === 1 && (await text('.addr-detail-row')).includes('Last reported'));
+    await pg.locator('.addr-row').nth(3).locator('.icon-btn').click();
+    check('only one row open', (await count('.addr-detail-row')) === 1 && (await pg.locator('.addr-row').nth(3).locator('.icon-btn').getAttribute('aria-expanded')) === 'true');
+    await btn('Timeline').click();
+    check('switching view closes the open row', (await count('.addr-body')) === 0);
+    await btn('Table').click();
+    await pg.locator('.select-btn').click();
+    await pg.locator('.check-row', { hasText: /^Shelter$/ }).locator('input').check();
+    await pg.keyboard.press('Escape');
+    check('the filter applies to the table', (await text('.addr-count')) === '7 of 47 shown');
+    await pg.locator('.select-btn').click(); await btn('Clear all').click(); await pg.keyboard.press('Escape');
+    await btn('Timeline').click();
+  });
+
+  await part('Address: navigation', async () => {
+    await go('#client/c1/address-history');
+    await pg.getByRole('link', { name: 'Back to Client Overview' }).click();
+    check('back link returns to the overview', pg.url().endsWith('#client/c1/overview'));
+    await pg.goBack();
+    await pg.waitForSelector('.addr-history');
+    check('browser Back returns to the history', pg.url().endsWith('#client/c1/address-history'));
+    await pg.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Client Details' }).click();
+    check('breadcrumb returns to the client', pg.url().includes('#client/c1/'));
+    await go('#client/c1/address-history');
+    await pg.getByRole('link', { name: 'Back to Client Overview' }).click();
+    await btn('View Address Details').click();
+    await pg.goBack();
+    await pg.waitForSelector('.addr-history');
+    check('Back with the dialog open dismisses it', (await count('.modal')) === 0);
+    await go('#client/c1/overview');
+    await btn('View Address Details').click();
+    await reload();
+    check('a reload keeps the dialog open', (await count('.modal .addr-title')) === 1);
+    await pg.keyboard.press('Escape');
+    await go('#client/c7/address-history');
+    check('a direct link opens any client', (await count('.addr-history')) === 1);
+  });
+
+  // Every client's address screens, checked against its records.
+  const A = await import('../src/data/addresses.js');
+  await part('Address: every client', async () => {
+    await go('#home'); await freshAddressPrefs(); await reload();
+    const db = await source();
+    const wrong = [];
+    for (const c of db.clients) {
+      const list = c.addresses;
+      if (!list || list.length < 3) { wrong.push(c.id + ' has ' + (list ? list.length : 0) + ' records'); continue; }
+      const cur = A.currentAddresses(list);
+      if (cur[0].street !== c.address.street) wrong.push(c.id + ' most recent ≠ profile address');
+      await go(`#client/${c.id}/overview`);
+      await pg.waitForSelector('.client-head');
+      if ((await btn('Contact Information').getAttribute('aria-pressed')) !== 'true') await btn('Contact Information').click();
+      const pill = (await count('.concurrent-pill')) ? await text('.concurrent-pill') : '';
+      if (pill !== (cur.length > 1 ? `${cur.length - 1} Concurrent` : '')) wrong.push(c.id + ' badge ' + pill);
+      if (!(await text('.kv-grid')).includes(`${cur[0].city}, ${A.stateOf(cur[0].county)} ${cur[0].zip}`)) wrong.push(c.id + ' city line');
+      await btn('View Address Details').click();
+      await pg.waitForSelector('.modal .addr-title');
+      if ((await count('.modal .addr-card')) !== cur.length - 1) wrong.push(c.id + ' dialog rows');
+      if (!(await text('.modal .addr-title')).startsWith(cur[0].street)) wrong.push(c.id + ' dialog address');
+      await pg.locator('.modal .btn-primary').click();
+      await pg.waitForSelector('.addr-history');
+      const n = list.length, k = A.countyCount(list);
+      if ((await text('.addr-history .view-head .addr-sub')) !== `${n} address${n !== 1 ? 'es' : ''} on record · ${k} counties/states`) wrong.push(c.id + ' summary');
+      if ((await count('.addr-card')) !== n) wrong.push(c.id + ' cards');
+      const p = A.concurrentPeriods(list);
+      const chip = await periodsChip();
+      if (chip !== (p ? `⇉ ${p} concurrent period${p > 1 ? 's' : ''}` : '')) wrong.push(c.id + ' periods ' + chip);
+      const years = (await pg.locator('.addr-year').allInnerTexts()).join(',');
+      if (years !== A.timelineYears(list).map((y) => y.year).join(',')) wrong.push(c.id + ' years');
+      if ((await count('.addr-period')) !== p) wrong.push(c.id + ' period groups');
+      if ((await count('.addr-current')) !== cur.length) wrong.push(c.id + ' current chips');
+      const ranges = await pg.locator('.addr-card .addr-range').allInnerTexts();
+      const want = A.timelineYears(list).flatMap((y) => y.groups.flatMap((g) => (g.type === 'single' ? [g.addr] : g.addrs))).map((a) => `${A.monthYear(a.start)} – ${a.end ? A.monthYear(a.end) : 'Present'}`);
+      if (ranges.join('|') !== want.join('|')) wrong.push(c.id + ' card dates');
+      for (const a of list) {
+        if (a.end && a.end < a.start) wrong.push(c.id + ' ' + a.id + ' ends before it starts');
+        if (!a.sources.length || !a.reports.length) wrong.push(c.id + ' ' + a.id + ' has no source');
+        if (a.sources.some((s) => !A.SOURCE_BUCKETS.includes(s))) wrong.push(c.id + ' ' + a.id + ' unknown source');
+      }
+    }
+    check('badges, dialogs, timelines and dates for all 64 clients', wrong.length === 0, wrong.slice(0, 6));
+  });
+
   await part('Every client renders every view', async () => {
     const bad = [];
     for (let i = 1; i <= 64; i++) {
@@ -462,7 +721,29 @@ async function run(mode) {
       await pg.waitForSelector('#all-notes-h');
       check('notes written in v2.1 are kept', (await count('text=Written in v2.1')) === 1);
       const after = await source();
-      check('upgraded data gains the new fields', after.version === 4 && !!after.staff && !!after.clients[0].sources && !!after.clients[0].ssnFull);
+      check('upgraded data gains the new fields', after.version === 5 && !!after.staff && !!after.clients[0].sources && !!after.clients[0].ssnFull && after.clients.every((c) => c.addresses && c.addresses.length >= 3));
+    });
+
+    await part('Upgrade from v3.0 saved data', async () => {
+      const db = await source();
+      await pg.evaluate((old) => {
+        old.version = 4;
+        old.clients.forEach((c) => { delete c.addresses; });
+        const d = new Date(); const p = (n) => String(n).padStart(2, '0');
+        old.notes.unshift({ id: 'kept3', clientId: 'c2', date: p(d.getMonth() + 1) + '/' + p(d.getDate()) + '/' + d.getFullYear(), edited: false, restricted: false, tag: 'PERSONAL', author: 'u1', text: 'Written in v3.0' });
+        old.actions.find((a) => a.clientId === 'c2').text = 'Changed in v3.0';
+        localStorage.setItem('colab.db', JSON.stringify(old));
+      }, db);
+      await go('#client/c2/case-notes');
+      await reload();
+      await pg.waitForSelector('#all-notes-h');
+      check('notes written in v3.0 are kept', (await count('text=Written in v3.0')) === 1);
+      const after = await source();
+      check('action item edits are kept', after.actions.some((a) => a.text === 'Changed in v3.0'));
+      check('every client gains an address history', after.version === 5 && after.clients.every((c) => c.addresses && c.addresses.length >= 3));
+      check('the same history as a fresh start', JSON.stringify(after.clients.find((c) => c.id === 'c9').addresses) === JSON.stringify(db.clients.find((c) => c.id === 'c9').addresses));
+      await go('#client/c2/address-history'); await freshAddressPrefs(); await reload();
+      check('and it shows', (await count('.addr-card')) === after.clients.find((c) => c.id === 'c2').addresses.length);
     });
 
     await part('Reset sample data', async () => {
@@ -519,8 +800,15 @@ async function run(mode) {
 
   await part('Accessibility', async () => {
     const bad = [];
-    for (const h of ['#home', '#my-action-items', '#my-case-notes', '#starred-clients', '#client/c1/overview', '#client/c1/services', '#client/c1/program-info', '#client/c1/providers', '#client/c1/case-notes', '#client/c1/service/s1', '#client/c1/provider/Mercy']) {
-      await go(h); await pg.waitForTimeout(150);
+    // Extra states to audit: the address dialog with a row open, the history with a card open, and its table.
+    const states = {
+      '#client/c1/overview dialog': async () => { await go('#client/c1/overview'); await btn('View Address Details').click(); await pg.locator('.modal .addr-toggle').nth(1).click(); },
+      '#client/c1/address-history': async () => { await go('#client/c1/address-history'); await btn('Timeline').click(); await pg.locator('.addr-card .addr-toggle').first().click(); await pg.locator('.select-btn').click(); },
+      '#client/c1/address-history table': async () => { await go('#client/c1/address-history'); await pg.keyboard.press('Escape'); await btn('Table').click(); await pg.locator('.addr-row').first().click(); }
+    };
+    for (const h of ['#home', '#my-action-items', '#my-case-notes', '#starred-clients', '#client/c1/overview', '#client/c1/services', '#client/c1/program-info', '#client/c1/providers', '#client/c1/case-notes', '#client/c1/service/s1', '#client/c1/provider/Mercy', ...Object.keys(states)]) {
+      if (states[h]) await states[h](); else await go(h);
+      await pg.waitForTimeout(150);
       const r = await pg.evaluate(() => {
         const lum = (c) => { const [r, g, b] = c.match(/[\d.]+/g).map(Number).slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
         const bg = (el) => { while (el) { const c = getComputedStyle(el).backgroundColor; const a = c.match(/[\d.]+/g); if (a && (a.length < 4 || +a[3] > 0.5)) return c; el = el.parentElement; } return 'rgb(255,255,255)'; };
@@ -539,7 +827,7 @@ async function run(mode) {
           const named = e.getAttribute('aria-label') || e.textContent.trim() || (e.id && document.querySelector(`label[for="${e.id}"]`)) || e.closest('label');
           if (!named) out.push('unlabeled ' + e.outerHTML.slice(0, 60));
           const r = e.getBoundingClientRect();
-          const exempt = e.type === 'checkbox' || e.classList.contains('tag') || e.closest('.tip-box');
+          const exempt = e.type === 'checkbox' || e.classList.contains('tag') || e.classList.contains('src-tag') || e.closest('.tip-box');
           if (!exempt && (r.width < 24 || r.height < 24)) out.push('small target ' + (e.getAttribute('aria-label') || e.textContent.trim()).slice(0, 30) + ` ${Math.round(r.width)}x${Math.round(r.height)}`);
         });
         return out;
@@ -547,6 +835,15 @@ async function run(mode) {
       r.forEach((x) => bad.push(h + ' ' + x));
     }
     check('contrast, names and target sizes', bad.length === 0, bad.slice(0, 6));
+    await btn('Timeline').click();
+    await go('#client/c1/address-history');
+    await pg.locator('.addr-card .addr-toggle').first().focus();
+    await pg.keyboard.press('Enter');
+    check('keyboard opens an address card', (await pg.locator('.addr-card .addr-toggle').first().getAttribute('aria-expanded')) === 'true');
+    await pg.keyboard.press('Enter');
+    check('and closes it', (await count('.addr-body')) === 0);
+    await pg.locator('.addr-card .src-tag').first().focus();
+    check('tag tooltips open on keyboard focus', await pg.locator('.addr-card .src-tip').first().locator('.tip-box').isVisible());
   });
 
   await part('Phone width', async () => {
@@ -554,12 +851,20 @@ async function run(mode) {
     await m.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());
     const mp = await m.newPage();
     const wide = [];
-    for (const h of ['#home', '#my-action-items', '#my-case-notes', '#starred-clients', '#client/c1/overview', '#client/c1/services', '#client/c1/case-notes', '#client/c12/program-info']) {
+    for (const h of ['#home', '#my-action-items', '#my-case-notes', '#starred-clients', '#client/c1/overview', '#client/c1/services', '#client/c1/case-notes', '#client/c12/program-info', '#client/c1/address-history']) {
       await mp.goto(BASE + h); await mp.waitForSelector('#main'); await mp.waitForTimeout(150);
       const w = await mp.evaluate(() => document.documentElement.scrollWidth);
       if (w > 390) wide.push(h + ' ' + w);
     }
     check('no sideways scrolling at 390px', wide.length === 0, wide);
+    await mp.goto(BASE + '#client/c1/overview'); await mp.waitForSelector('#main');
+    await mp.getByRole('button', { name: 'View Address Details' }).click();
+    await mp.locator('.modal .addr-toggle').first().click();
+    check('address dialog fits at 390px', await mp.evaluate(() => document.querySelector('.modal').scrollWidth <= document.querySelector('.modal').clientWidth + 1 && document.documentElement.scrollWidth <= 390));
+    await mp.goto(BASE + '#client/c1/address-history'); await mp.waitForSelector('.addr-history');
+    await mp.getByRole('button', { name: 'Table' }).click();
+    check('address table scrolls inside its box at 390px', await mp.evaluate(() => document.documentElement.scrollWidth <= 390));
+    await mp.getByRole('button', { name: 'Timeline' }).click();
     await m.close();
   });
 

@@ -2,7 +2,10 @@
 // Every person, ID and record here is fictional. The generator is deterministic (same seed, same data),
 // and dates are placed relative to the day the data is first created in a browser.
 
-export const SEED_VERSION = 4;
+import { C1_ADDRESSES } from './address-c1.js';
+import { makeAddressHistory } from './address-gen.js';
+
+export const SEED_VERSION = 5;
 
 // ------------------------------------------------------------------ random helpers
 function mulberry32(a) {
@@ -356,7 +359,7 @@ function jimothy(t) {
   const client = {
     id: 'c1', first: 'Jimothy', last: 'Jones', household: false, members: null, dob: '02/09/2000', gender: 'Male', legalSex: 'Male', race: 'White', ethnicity: 'Not Hispanic/Latinx', marital: 'Never Married/Single', living: 'With family', language: 'English',
     mci: '1234567890', ssn4: '1234', dhs: '470106828', dpw: '123456778890', phone: '(412) 123-4567', email: 'thisisafakeemail@gmail.com',
-    address: { street: '950 Second Avenue', city: 'Pittsburgh', state: 'PA', zip: '15219', school: 'Pittsburgh School District', ward: 'Ward 15, District 8 (Pittsburgh)', facility: 'Allegheny County Jail [facility or building name]' },
+    address: { street: '999 Murray Avenue, Apt 502', city: 'Pittsburgh', state: 'PA', zip: '15217', school: 'Pittsburgh City School District', ward: 'Ward 15, District 8 (Pittsburgh)', facility: 'Allegheny County Jail [facility or building name]' },
     colabs: ['IPV', 'ACGO'], starred: 'IPV', favorited: d(-300),
     enrollments: null, services, instances, justice
   };
@@ -364,12 +367,12 @@ function jimothy(t) {
     { text: "DA's office confirmed that they will not close out the case until the individual completes BIP. WCS confirmed connecting with the DA's Office about coordinating around this case. Pending are updates needed from DHS about the individual's BIP attendance and engagement.", tag: 'PERSONAL', restricted: true, edited: true, days: -7 },
     { text: "WCS confirmed it is coordinating with the DA's Office on this case. Next step is a joint call before the next case conference.", tag: 'WELLNESS CHECKS', restricted: false, days: -14 },
     { text: 'Probation officer (Jam, James) reports the client attended 3 of 4 BIP sessions this month. One absence was excused.', tag: 'IPV', restricted: true, days: -21 },
-    { text: 'SNAP recertification is due within six weeks. Caseworker to confirm the renewal packet went to the Second Avenue address.', tag: 'ACGO', restricted: false, days: -33 },
+    { text: 'SNAP recertification is due within six weeks. Caseworker to confirm the renewal packet went to the Murray Avenue address.', tag: 'ACGO', restricted: false, days: -33 },
     { text: 'Mercy outpatient team asked to be added to the next case conference invite.', tag: 'IPV', restricted: false, days: -41 },
     { text: 'Client prefers calls after 3pm. Text first; the voicemail box is often full.', tag: 'PERSONAL', restricted: true, edited: true, days: -54 },
     { text: 'Protection from Abuse order extended through March. Victim services has the updated copy.', tag: 'IPV', restricted: false, days: -67 },
     { text: 'Pretrial services confirmed the address on file. No contact condition remains in place.', tag: 'IPV', restricted: true, days: -81 },
-    { text: 'Allegheny GO enrollment confirmed. Card mailed to the Second Avenue address.', tag: 'ACGO', restricted: false, days: -95 },
+    { text: 'Allegheny GO enrollment confirmed. Card mailed to the Murray Avenue address.', tag: 'ACGO', restricted: false, days: -95 },
     { text: 'Wellness check completed. Client reports stable housing and regular attendance at outpatient appointments.', tag: 'WELLNESS CHECKS', restricted: false, days: -109 },
     { text: 'Follow up on whether the employer letter for the Medicaid renewal was submitted.', tag: 'PERSONAL', restricted: true, days: -125 },
     { text: 'Case conference held with WCS, probation and DHS. Next review set for September.', tag: 'IPV', restricted: false, days: -137 }
@@ -472,6 +475,13 @@ export function enrich(c, t) {
   if (!c.ssnFull) {
     c.ssnFull = c.id === 'c1' ? '123-45-1234' : String(100 + (h % 665)).padStart(3, '0') + '-' + String(10 + ((h >>> 8) % 89)) + '-' + c.ssn4;
   }
+  if (!c.addresses) {
+    if (c.id === 'c1') {
+      // Jimothy's history comes from the Address History prototype; his address of record is its most recent.
+      c.addresses = JSON.parse(JSON.stringify(C1_ADDRESSES));
+      Object.assign(c.address, { street: '999 Murray Avenue, Apt 502', zip: '15217', school: 'Pittsburgh City School District' });
+    }
+  }
   if (c.justice) {
     c.justice.incarceration.forEach((g) => g.items.forEach((e, i) => {
       if (e.agency) return;
@@ -481,5 +491,6 @@ export function enrich(c, t) {
       if (c.id !== 'c1' && /^\[/.test(e.facility || '[')) { const list = FACILITIES[e.kind] || ['[Facility]']; e.facility = list[(h + i) % list.length]; }
     }));
   }
+  if (!c.addresses) c.addresses = makeAddressHistory(c, t, { places: PLACES, providers: PROVIDERS });
   return c;
 }

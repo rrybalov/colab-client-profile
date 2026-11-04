@@ -24,8 +24,24 @@
  *   full: true, members: string[]|null, dhs: string, dpw: string,
  *   gender: string, legalSex: string, race: string, ethnicity: string, marital: string, living: string, language: string,
  *   sources: { address: SourceStamp, phone: SourceStamp, email: SourceStamp },
- *   services: Service[], instances: ServiceInstance[], enrollments: Enrollment[], justice: Justice|null
+ *   services: Service[], instances: ServiceInstance[], enrollments: Enrollment[], justice: Justice|null,
+ *   addresses: AddressRecord[]
  * }} Client
+ *
+ * One address as one source reported it. `end: null` means it is still open (current). Records whose dates
+ * overlap are concurrent; see src/data/addresses.js for how the screens read them.
+ * @typedef {{
+ *   id: string, street: string, city: string, township: string, county: string, zip: string, schoolDistrict: string,
+ *   addressType: 'Permanent'|'Temporary'|'Mailing'|'Shelter'|'Transitional'|'Incarceration', residential: boolean,
+ *   kind: 'home'|'shelter'|'transitional'|'incarcerated', useDescription: string,
+ *   start: string, effDate: string, end: string|null,
+ *   sources: string[], specificSources: { bucket: string, name: string, code: string }[],
+ *   reports: { agency: string, date: string, method: string, county: string }[],
+ *   certainty: 'high'|'medium'|'low', conflict: string,
+ *   email: string, phone: { number: string, type: string, validDate: string }|null,
+ *   altPhones: { number: string, type: string, validDate: string }[],
+ *   providerLocation: string, facilityId: string
+ * }} AddressRecord
  *
  * @typedef {{ id: string, service: string, area: string, program: string, first: string, last: string, added: string, all: string[], grouped: string[] }} Service
  * @typedef {{ service: string, provider: string, facility: string, program: string, dx: string, units: string, rate: string, rateType: string, cost: string, status: string, first: string, last: string }} ServiceInstance
@@ -100,7 +116,23 @@ export function normalizeClient(c) {
       probation: j.probation ? { status: str(j.probation.status), unit: str(j.probation.unit), officer: str(j.probation.officer), lastIntake: str(j.probation.lastIntake), lastActive: str(j.probation.lastActive) } : null,
       incarceration: arr(j.incarceration).map((g) => ({ label: str(g.label), items: arr(g.items).map((e) => ({ id: str(e.id), title: str(e.title), kind: str(e.kind), range: str(e.range), dur: str(e.dur), facility: str(e.facility), agency: str(e.agency), admission: str(e.admission), release: str(e.release) })) })),
       custody: { total: str(j.custody && j.custody.total), events: num(j.custody && j.custody.events), facilities: num(j.custody && j.custody.facilities) }
-    } : null
+    } : null,
+    addresses: arr(c.addresses).map(normalizeAddressRecord).filter((a) => a.start)
+  };
+}
+
+const phone = (p) => (p && p.number ? { number: str(p.number), type: str(p.type), validDate: str(p.validDate) } : null);
+/** @returns {AddressRecord} */
+export function normalizeAddressRecord(a, i) {
+  return {
+    id: str(a.id) || 'addr' + i, street: str(a.street), city: str(a.city), township: str(a.township), county: str(a.county), zip: str(a.zip),
+    schoolDistrict: str(a.schoolDistrict), addressType: str(a.addressType) || 'Permanent', residential: bool(a.residential),
+    kind: str(a.kind) || 'home', useDescription: str(a.useDescription),
+    start: str(a.start), effDate: str(a.effDate), end: a.end ? str(a.end) : null,
+    sources: arr(a.sources).map(str), specificSources: arr(a.specificSources).map((x) => ({ bucket: str(x.bucket), name: str(x.name), code: str(x.code) })),
+    reports: arr(a.reports).map((r) => ({ agency: str(r.agency), date: str(r.date), method: str(r.method), county: str(r.county) })),
+    certainty: str(a.certainty), conflict: str(a.conflict), email: str(a.email), phone: phone(a.phone), altPhones: arr(a.altPhones).map(phone).filter(Boolean),
+    providerLocation: str(a.providerLocation), facilityId: str(a.facilityId)
   };
 }
 

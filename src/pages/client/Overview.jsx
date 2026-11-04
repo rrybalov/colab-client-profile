@@ -3,6 +3,10 @@ import React from 'react';
 import { Icon } from '../../ui/icons.jsx';
 import { usePref } from '../../state/store.jsx';
 import { Segmented } from '../../ui/controls.jsx';
+import { Link } from '../../router.jsx';
+import { useModalControls } from '../../state/modal.js';
+import { currentAddresses, stateOf } from '../../data/addresses.js';
+import { historyRoute } from './address/AddressModal.jsx';
 import { dobText, fullName } from '../../lib.js';
 
 // Where a contact detail came from and when. Sources with a known description get an explanatory tooltip.
@@ -16,23 +20,52 @@ function Source({ stamp }) {
   return <div className="source">Source: {pill}{stamp.asOf && <> As of {stamp.asOf}</>}</div>;
 }
 
+// The most recent address, with how many others are open at the same time, and the ways into the history.
+function AddressBlock({ client: c }) {
+  const { openModal } = useModalControls();
+  const current = currentAddresses(c.addresses);
+  const top = current[0];
+  const others = current.length - 1;
+  const a = c.address;
+  const details = () => openModal('address', { clientId: c.id });
+  return (
+    <div className="kv">
+      <div className="addr-label-row">
+        <div className="kv-label">Address <span>(Most Recent)</span></div>
+        {top && others > 0 && (
+          <span className="tip">
+            <button type="button" className="concurrent-pill" onClick={details} aria-describedby={'conc-tip-' + c.id}>{others} Concurrent</button>
+            <span className="tip-box is-right" role="tooltip" id={'conc-tip-' + c.id}>{others} other address{others > 1 ? 'es' : ''} reported for the same period</span>
+          </span>
+        )}
+      </div>
+      {top ? (
+        <>
+          <div className="kv-value">{top.street},<br />{top.city}, {stateOf(top.county)} {top.zip}</div>
+          <ul className="kv-list">
+            {a.facility && <li><Icon name="pin" size={14} />{a.facility}</li>}
+            {a.ward && <li><Icon name="landmark" size={14} />{a.ward}</li>}
+            <li><Icon name="book" size={14} />{top.schoolDistrict || a.school}</li>
+          </ul>
+          <Source stamp={c.sources.address} />
+          <div className="addr-links">
+            <button type="button" className="link-btn is-small" onClick={details}>View Address Details</button>
+            <span className="addr-links-sep" aria-hidden="true" />
+            <Link className="link-btn is-small is-inline" to={historyRoute(c.id)}>View Full Address History<Icon name="external" size={13} /></Link>
+          </div>
+        </>
+      ) : <div className="kv-value is-missing">No current address on file</div>}
+    </div>
+  );
+}
+
 export function Overview({ client: c }) {
   const [sub, setSub] = usePref('overview.sub', 'contact');
-  const a = c.address;
   let body;
   if (sub === 'contact') {
     body = (
       <div className="kv-grid">
-        <div className="kv">
-          <div className="kv-label">Address <span>(Most Recent)</span></div>
-          <div className="kv-value">{a.street},<br />{a.city}, {a.state} {a.zip}</div>
-          <ul className="kv-list">
-            {a.facility && <li><Icon name="pin" size={14} />{a.facility}</li>}
-            <li><Icon name="landmark" size={14} />{a.ward}</li>
-            <li><Icon name="book" size={14} />{a.school}</li>
-          </ul>
-          <Source stamp={c.sources.address} />
-        </div>
+        <AddressBlock client={c} />
         <div className="kv" style={{ gap: 18 }}>
           <div className="kv"><div className="kv-label">Phone Number <span>(Most Recent)</span></div>
             <div className="kv-value num">{c.phone || 'Not on file'}{c.phone && <span style={{ color: 'var(--blue)' }}><Icon name="phone" /></span>}</div>

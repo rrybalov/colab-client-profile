@@ -15,6 +15,7 @@ import { Program } from './Program.jsx';
 import { Providers } from './Providers.jsx';
 import { ServiceDetail, ProviderDetail } from './Details.jsx';
 import { ClientNotesPage, ClientActionsPage } from './Notes.jsx';
+import { AddressHistory } from './address/AddressHistory.jsx';
 
 function Benefits() {
   return <div className="empty-box"><h2 className="title" style={{ fontSize: 18, fontWeight: 600 }}>Benefits</h2><p>This tab is not designed yet. Benefit enrollments currently show under Client Overview › Program Enrollment.</p></div>;
@@ -35,14 +36,14 @@ function NotFound() {
   );
 }
 
-const CRUMBS = { notes: ['All Case Notes', 'notes'], actions: ['All Action Items', 'inbox'], service: ['Service Details', 'layers'], provider: ['Provider Details', 'lifebuoy'] };
+const CRUMBS = { notes: ['All Case Notes', 'notes'], actions: ['All Action Items', 'inbox'], addresses: ['Address History', 'pin'], service: ['Service Details', 'layers'], provider: ['Provider Details', 'lifebuoy'] };
 
 export function ClientPage({ route }) {
   const { query, client } = useClient(route.id);
   const [, setLastTab] = usePref('client.lastTab.' + route.id, 'overview');
   useEffect(() => { if (route.sub === 'tab') setLastTab(route.tab); }, [route.sub, route.tab, route.id]);
   const crumb = CRUMBS[route.sub];
-  const panelKey = route.sub === 'tab' ? route.tab : route.sub === 'service' || route.sub === 'provider' ? 'detail' : null;
+  const panelKey = route.sub === 'tab' ? route.tab : ['service', 'provider', 'addresses'].includes(route.sub) ? 'detail' : null;
 
   if (!client) {
     const notFound = query.status === 'error' && query.error && query.error.status === 404;
@@ -58,6 +59,7 @@ export function ClientPage({ route }) {
   let body;
   if (route.sub === 'notes') body = <ClientNotesPage client={client} />;
   else if (route.sub === 'actions') body = <ClientActionsPage client={client} />;
+  else if (route.sub === 'addresses') body = <section className="card"><AddressHistory client={client} /></section>;
   else if (route.sub === 'service') {
     const svc = client.services.find((s) => s.id === route.key);
     body = <section className="card">{svc ? <ServiceDetail client={client} svc={svc} /> : <Missing what="service" client={client} />}</section>;

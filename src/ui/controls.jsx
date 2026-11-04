@@ -200,7 +200,7 @@ export function Modal({ id, title, intro, icon, narrow, children, onClose, focus
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const first = el.querySelector('input, textarea') || el.querySelector('.choice, .btn-primary, button:not(.modal-close)');
+    const first = el.querySelector('[data-autofocus]') || el.querySelector('input, textarea') || el.querySelector('.choice, .btn-primary, button:not(.modal-close)');
     if (first) first.focus({ preventScroll: true });
   }, [focusKey]);
   useEffect(() => {

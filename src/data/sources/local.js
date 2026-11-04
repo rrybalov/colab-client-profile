@@ -10,15 +10,16 @@ function read() {
   try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
 }
 
-// Version 3 (v2.x of the app) stored the same records without staff, sources or full SSNs.
-// Upgrade it in place so changes people made are kept.
+// Older saved data is upgraded in place so changes people made are kept:
+// version 3 (app v2.x) lacked staff, contact sources and full SSNs; version 4 (app v3.0) lacked address histories.
 function upgrade(stored) {
   if (stored && stored.version === SEED_VERSION) return stored;
-  const fresh = buildSeed();
-  if (!stored || stored.version !== 3) return fresh;
+  if (!stored || (stored.version !== 3 && stored.version !== 4)) return buildSeed();
+  const fresh = stored.version === 3 ? buildSeed() : null;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   stored.clients.forEach((c) => enrich(c, today));
-  return { ...stored, version: SEED_VERSION, userId: fresh.userId, staff: fresh.staff, colabs: fresh.colabs, providers: fresh.providers, reports: stored.reports || [] };
+  const extra = fresh ? { userId: fresh.userId, staff: fresh.staff, colabs: fresh.colabs, providers: fresh.providers } : {};
+  return { ...stored, ...extra, version: SEED_VERSION, reports: stored.reports || [] };
 }
 
 export function createLocalSource() {

@@ -29,8 +29,8 @@ The shapes are defined in full, with types, in `src/data/schema.js`.
 {
   "id": "c1", "first": "Jimothy", "last": "Jones", "household": false, "dob": "02/09/2000",
   "mci": "1234567890", "ssn4": "1234", "phone": "(412) 123-4567", "email": "…",
-  "address": { "street": "950 Second Avenue", "city": "Pittsburgh", "state": "PA", "zip": "15219",
-               "school": "Pittsburgh School District", "ward": "Ward 15, District 8 (Pittsburgh)", "facility": null },
+  "address": { "street": "999 Murray Avenue, Apt 502", "city": "Pittsburgh", "state": "PA", "zip": "15217",
+               "school": "Pittsburgh City School District", "ward": "Ward 15, District 8 (Pittsburgh)", "facility": null },
   "colabs": ["IPV", "ACGO"],
   "starred": "IPV",
   "favorited": "01/06/2026"
@@ -48,6 +48,35 @@ The shapes are defined in full, with types, in `src/data/schema.js`.
 - `instances`: `[{ service, provider, facility, program, dx, units, rate, rateType, cost, status, first, last }]`
 - `enrollments`: `[{ name, kind, status, pct, start, end, asOf, stale }]`. `kind` is one of `active`, `ending`, `presumed` or `inactive`.
 - `justice`: `null`, or `{ highRisk, jail, involvement, bip, cases, probation, incarceration, custody }`. See the schema for the inner fields. Custody events carry `facility`, `agency`, `admission` and `release`.
+- `addresses`: every address any program has reported for the client, as AddressRecords (below). Send them in any order.
+
+`address` is the one address the profile leads with. It should be the most recent open AddressRecord (`end: null`, latest `start`); the overview, the Address Details dialog and the Address History page all read `addresses`.
+
+**AddressRecord**: one address, as the programs that reported it saw it.
+
+```json
+{
+  "id": "a01", "street": "999 Murray Ave, Unit 500", "city": "Pittsburgh", "township": "Pittsburgh",
+  "county": "Allegheny", "zip": "15217", "schoolDistrict": "Pittsburgh City School District",
+  "addressType": "Permanent", "residential": true, "kind": "home", "useDescription": "Primary residence — client re-housed via OBH rapid re-housing program",
+  "start": "2025-04-01", "effDate": "2025-04-03", "end": null,
+  "sources": ["OBH", "Provider"],
+  "specificSources": [{ "bucket": "OBH", "name": "DCS - HealthChoices - CCBH Eligibility", "code": "CCBHEL" }, …],
+  "reports": [{ "agency": "OBH – Allegheny County", "date": "2025-04-01", "method": "Intake form", "county": "Allegheny" }, …],
+  "certainty": "high", "conflict": "",
+  "email": "dmwilliams84@gmail.com", "phone": { "number": "(412) 555-0183", "type": "Mobile", "validDate": "2025-04-01" },
+  "altPhones": [{ "number": "(412) 555-0297", "type": "Work", "validDate": "2025-04-15" }], "providerLocation": "Mercy Behavioral Health, 1 Smithfield St, Pittsburgh, PA 15222",
+  "facilityId": "PA-OBH-MBH-00017"
+}
+```
+
+- Dates are `yyyy-mm-dd` calendar days, shown as the same day everywhere. `end: null` means the address is still open (current). `effDate` is optional.
+- **Concurrent addresses.** Records whose date ranges overlap (an open record runs to today and beyond) form a concurrent period. Several open records at once is normal: a mailing address, a shelter stay and a residence can all be current. The app works this out from the dates; the API doesn't group them.
+- `sources` are program tags, from `OBH`, `DHS`, `Medicare`, `SNAP`, `CYF`, `ACHD`, `Shelter`, `Provider`, `Self`. `specificSources` names the systems behind each tag; when a tag has none, the app lists the `reports` whose `agency` contains the tag name.
+- `county` may end with a state code in brackets, such as `"Brooke (WV)"`. Without one the state is PA.
+- `kind` picks the icon: `home`, `shelter`, `transitional` or `incarcerated`.
+- `conflict` is a free-text note; when it is present the table marks the row "concurrent".
+- `providerLocation` is `"Name, street, city, ST zip"`; the name is everything before the first part that starts with a number.
 
 It **never** includes the full SSN.
 

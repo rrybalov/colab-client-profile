@@ -14,6 +14,7 @@ export function parse(hash) {
     const sub = parts[2] || 'overview';
     if (sub === 'case-notes') return { page: 'client', id, sub: 'notes' };
     if (sub === 'action-items') return { page: 'client', id, sub: 'actions' };
+    if (sub === 'address-history') return { page: 'client', id, sub: 'addresses' };
     if (sub === 'service' && parts[3]) return { page: 'client', id, sub: 'service', key: parts[3] };
     if (sub === 'provider' && parts[3]) return { page: 'client', id, sub: 'provider', key: parts.slice(3).join('/') };
     return { page: 'client', id, sub: 'tab', tab: CLIENT_TABS.some((t) => t[0] === sub) ? sub : 'overview' };
@@ -26,6 +27,7 @@ export function href(r) {
   const base = '#client/' + r.id + '/';
   if (r.sub === 'notes') return base + 'case-notes';
   if (r.sub === 'actions') return base + 'action-items';
+  if (r.sub === 'addresses') return base + 'address-history';
   if (r.sub === 'service') return base + 'service/' + r.key;
   if (r.sub === 'provider') return base + 'provider/' + encodeURIComponent(r.key);
   return base + (r.tab || 'overview');

@@ -16,7 +16,7 @@ import { Toast, Loading, LoadError } from './ui/controls.jsx';
 import { fullName } from './lib.js';
 
 const HUB = { home: Home, 'my-action-items': MyActions, 'my-case-notes': MyNotes, 'starred-clients': Starred };
-const SUBPAGES = { notes: 'All Case Notes', actions: 'All Action Items', service: 'Service Details', provider: 'Provider Details' };
+const SUBPAGES = { notes: 'All Case Notes', actions: 'All Action Items', addresses: 'Address History', service: 'Service Details', provider: 'Provider Details' };
 
 function useTitle(route) {
   const { clients } = useData();
