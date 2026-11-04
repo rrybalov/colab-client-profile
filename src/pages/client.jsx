@@ -9,7 +9,7 @@ import {
   STAFF, ME, colabTag, dobText, fullName, isOverdue, isoToUS, todayISO, plural, countText, money,
   sortKey, sortRows, matches, serviceSummary, providerSummary, staffName
 } from '../lib.js';
-import { Tip, Segmented, usePaged, Pager, SortHead, useSort, Table, StarButton, CopyButton, NoteRow, ActionRow, useTaskActions, LockBadge } from '../ui.jsx';
+import { Clamp, Tip, Segmented, usePaged, Pager, SortHead, useSort, Table, StarButton, CopyButton, NoteRow, ActionRow, useTaskActions, LockBadge } from '../ui.jsx';
 
 const me = STAFF.find((s) => s.id === ME);
 const MONEY = [
@@ -45,11 +45,11 @@ const DEFS = {
   ]
 };
 const GRID = {
-  svc: '92px 100px minmax(150px,1.3fr) minmax(160px,1.3fr) minmax(170px,1.5fr) minmax(130px,1fr) 88px 40px',
-  prov: 'minmax(110px,1.2fr) minmax(110px,1fr) 92px 100px 80px minmax(120px,1fr) 70px 86px 60px 80px 76px',
-  sd: '92px 100px minmax(110px,1fr) 80px minmax(150px,1.3fr) minmax(100px,1fr) 70px 86px 60px 74px 76px',
-  pd: 'minmax(160px,1.4fr) 92px 100px minmax(110px,1fr) minmax(120px,1fr) 70px 86px 60px 74px 76px',
-  cases: '130px 170px 90px minmax(170px,1.4fr) 120px 140px'
+  svc: '112px 112px minmax(150px,1.3fr) minmax(160px,1.3fr) minmax(170px,1.5fr) minmax(130px,1fr) 100px 40px',
+  prov: 'minmax(110px,1.2fr) minmax(110px,1fr) 112px 112px 84px minmax(120px,1fr) 64px 76px 64px 92px 76px',
+  sd: '112px 112px minmax(110px,1fr) 84px minmax(150px,1.3fr) minmax(110px,1fr) 64px 76px 64px 92px 76px',
+  pd: 'minmax(160px,1.4fr) 112px 112px minmax(110px,1fr) minmax(120px,1fr) 64px 76px 64px 92px 76px',
+  cases: '130px 170px 100px minmax(170px,1.4fr) 130px 150px'
 };
 const PROGRAMS = ['Behavioral Health', 'Housing', 'Justice'];
 const uniq = (arr) => Array.from(new Set(arr.filter(Boolean))).sort();
@@ -290,7 +290,7 @@ function Services({ client: c }) {
           <button type="button" className="tool-btn" aria-label="Export table"><Icon name="download" size={17} /></button>
         </div>
       </div>
-      <Table label="Services" cols={GRID.svc} min={1000} empty="No services match these filters. Clear the search or filters to see all services."
+      <Table label="Services" cols={GRID.svc} min={1080} empty="No services match these filters. Clear the search or filters to see all services."
         head={<><SortHead defs={DEFS.svc} sort={sort} onSort={(d) => { onSort(d); setMenuRow(null); }} /><div className="th" role="columnheader"><span className="sr-only">Actions</span></div></>}>
         {p.items.map((r) => (
           <div className="tr is-row" role="row" key={r.id}>
@@ -428,7 +428,7 @@ function Program({ client: c }) {
           <button type="button" className="filter-pill" aria-pressed={caseFilter === 'all'} onClick={() => setCaseFilter('all')}>All ({j.cases.length})</button>
           <button type="button" className="filter-pill" aria-pressed={caseFilter === 'dv'} onClick={() => setCaseFilter('dv')}>Domestic Violence Arrests ({dvCount})</button>
         </div>
-        <Table label="Case history" cols={GRID.cases} min={760} empty="No cases match this filter." head={<SortHead defs={DEFS.cases} sort={sort} onSort={onSort} />}>
+        <Table label="Case history" cols={GRID.cases} min={860} empty="No cases match this filter." head={<SortHead defs={DEFS.cases} sort={sort} onSort={onSort} />}>
           {cases.map((x) => (
             <div className="tr is-row is-ruled" role="row" key={x.otn}>
               <div className="td" role="cell"><a className="link-btn is-inline" style={{ padding: 0, textDecoration: 'none' }} href="https://ujsportal.pacourts.us/" target="_blank" rel="noopener noreferrer">{x.otn}<Icon name="external" size={13} /><span className="sr-only">(opens UJS Portal)</span></a></div>
@@ -504,7 +504,7 @@ function Providers({ client: c }) {
         <SearchBox id="prov-search" label="Search providers" value={query} onChange={setQuery} />
         <SelectBox id="prov-program" label="Program filter" placeholder="Program Filter" value={program} onChange={setProgram} options={uniq(c.instances.map((i) => i.program))} />
       </div>
-      <Table label="Providers" cols={GRID.prov} min={980} empty="No providers match these filters. Clear the search or program filter to see all providers." head={<SortHead defs={DEFS.prov} sort={sort} onSort={onSort} />}>
+      <Table label="Providers" cols={GRID.prov} min={1140} empty="No providers match these filters. Clear the search or program filter to see all providers." head={<SortHead defs={DEFS.prov} sort={sort} onSort={onSort} />}>
         {rows.map((r) => (
           <div className="tr is-row" role="row" key={r.provider}>
             <div className="td is-tight" role="cell"><Link className="link-btn" to={providerRoute(c.id, r.provider)}>{r.provider}</Link></div>
@@ -559,7 +559,7 @@ function ServiceDetail({ client: c, svc }) {
         <SelectBox id="sd-provider" label="Provider filter" placeholder="Provider Filter" value={provider} onChange={(v) => { setProvider(v); p.reset(); }} options={uniq(all.map((i) => i.provider))} />
         <SelectBox id="sd-program" label="Program filter" placeholder="Program Filter" value={program} onChange={(v) => { setProgram(v); p.reset(); }} options={uniq(all.map((i) => i.program))} />
       </div>
-      <Table label="Service instances" cols={GRID.sd} min={980} empty="No service instances match these filters. Clear the search or filters to see all of them." head={<SortHead defs={DEFS.sd} sort={sort} onSort={onSort} />}>
+      <Table label="Service instances" cols={GRID.sd} min={1100} empty="No service instances match these filters. Clear the search or filters to see all of them." head={<SortHead defs={DEFS.sd} sort={sort} onSort={onSort} />}>
         {p.items.map((r, i) => (
           <div className="tr is-row" role="row" key={r.provider + r.first + i}>
             {DEFS.sd.map((d) => <div className="td is-tight" role="cell" key={d.key}>{d.key === 'provider' ? <Link className="link-btn" to={providerRoute(c.id, r.provider)}>{r.provider}</Link> : r[d.key]}</div>)}
@@ -595,7 +595,7 @@ function ProviderDetail({ client: c, name }) {
         <SearchBox id="pd-search" label="Search this provider's services" value={query} onChange={(v) => { setQuery(v); p.reset(); }} />
         <SelectBox id="pd-program" label="Program filter" placeholder="Program Filter" value={program} onChange={(v) => { setProgram(v); p.reset(); }} options={uniq(all.map((i) => i.program))} />
       </div>
-      <Table label="Services from this provider" cols={GRID.pd} min={920} empty="No services from this provider match these filters. Clear the search or program filter to see all of them." head={<SortHead defs={DEFS.pd} sort={sort} onSort={onSort} />}>
+      <Table label="Services from this provider" cols={GRID.pd} min={1060} empty="No services from this provider match these filters. Clear the search or program filter to see all of them." head={<SortHead defs={DEFS.pd} sort={sort} onSort={onSort} />}>
         {p.items.map((r, i) => (
           <div className="tr is-row" role="row" key={r.service + r.first + i}>
             <div className="td is-tight" role="cell">{sid(r.service) ? <Link className="link-btn" to={serviceRoute(c.id, sid(r.service))}>{r.service}</Link> : r.service}</div>
@@ -815,8 +815,7 @@ function Panel({ client: c, open, setOpen }) {
             const flip = () => setNoteOpen({ ...noteOpen, [n.id]: !o });
             return (
               <li className="note" key={n.id}>
-                {o ? <p className="note-full">{n.text} <button type="button" className="more-btn" aria-expanded="true" onClick={flip}>Show less</button></p>
-                  : <div className="note-clamp"><span>{n.text}</span><button type="button" className="more-btn" aria-expanded="false" onClick={flip}>Show more</button></div>}
+                <Clamp text={n.text} open={o} onToggle={flip} fullClassName="note-full" />
                 <div className="meta"><span>{n.date}</span>{n.edited && <span className="sep edited">Edited</span>}
                   {n.restricted && <span className="sep lock is-restricted"><Icon name="lock" size={13} label="Restricted" /></span>}
                   <span className="spacer" />
@@ -845,10 +844,12 @@ function Panel({ client: c, open, setOpen }) {
                 <div className="task-body"><label className="task-text" htmlFor={'ai-' + a.id}>{a.text}</label>
                   <div className="meta"><span>{staffName(a.assignee)}</span>
                     <span className={'sep' + (over ? ' is-overdue' : '')}><Icon name="calendar" size={13} />{a.due ? isoToUS(a.due) : 'No due date'}{over && <Icon name="alert" size={13} label="Overdue" />}</span>
-                    {a.edited && <span className="sep edited">Edited</span>}<span className="spacer" />
-                    <button type="button" className="icon-btn" aria-label="Edit action item" onClick={() => actionDraft.edit(a)}><Icon name="edit" size={15} /></button>
-                    <button type="button" className="icon-btn is-danger" aria-label="Delete action item" onClick={() => remove(a)}><Icon name="trash" size={15} /></button>
+                    {a.edited && <span className="sep edited">Edited</span>}
                   </div>
+                </div>
+                <div className="task-actions">
+                  <button type="button" className="icon-btn" aria-label="Edit action item" onClick={() => actionDraft.edit(a)}><Icon name="edit" size={15} /></button>
+                  <button type="button" className="icon-btn is-danger" aria-label="Delete action item" onClick={() => remove(a)}><Icon name="trash" size={15} /></button>
                 </div>
               </li>
             );

@@ -1,5 +1,5 @@
 // Shared building blocks.
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './icons.jsx';
 import { useStore, usePref } from './store.jsx';
 import { Link } from './router.jsx';
@@ -131,6 +131,28 @@ export function CopyButton({ value, label, size = 14, className = 'icon-btn is-a
   return <button type="button" className={className} onClick={copy} aria-label={'Copy ' + label}><Icon name="copy" size={size} /></button>;
 }
 
+// One line of a note with "Show more" — offered only when the line is actually cut off.
+export function Clamp({ text, open, onToggle, className = 'note-clamp', fullClassName = 'feed-text', style }) {
+  const ref = useRef(null);
+  const [cut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || open) return undefined;
+    const measure = () => setCut(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(el);
+    return () => { if (ro) ro.disconnect(); };
+  }, [text, open]);
+  if (open) return <p className={fullClassName} style={style}>{text} <button type="button" className="more-btn" aria-expanded="true" onClick={onToggle}>Show less</button></p>;
+  return (
+    <div className={className} style={style}>
+      <span ref={ref}>{text}</span>
+      {cut && <button type="button" className="more-btn" aria-expanded="false" onClick={onToggle}>Show more</button>}
+    </div>
+  );
+}
+
 // Note and action rows used on Home, My pages and the client's full-page lists.
 export function NoteRow({ note, client, showClient, lock, clampKey, onEdit, onDelete }) {
   const [open, setOpen] = usePref(clampKey ? 'open.' + clampKey + '.' + note.id : 'x', !clampKey);
@@ -138,9 +160,9 @@ export function NoteRow({ note, client, showClient, lock, clampKey, onEdit, onDe
   return (
     <li className="feed-item">
       <div className="feed-body">
-        {clampKey && !isOpen
-          ? <div className="note-clamp" style={{ fontSize: 13 }}><span>{note.text}</span><button type="button" className="more-btn" aria-expanded="false" onClick={() => setOpen(true)}>Show more</button></div>
-          : <p className="feed-text">{note.text}{clampKey && <> <button type="button" className="more-btn" aria-expanded="true" onClick={() => setOpen(false)}>Show less</button></>}</p>}
+        {clampKey
+          ? <Clamp text={note.text} open={isOpen} onToggle={() => setOpen(!isOpen)} style={isOpen ? undefined : { fontSize: 13 }} />
+          : <p className="feed-text">{note.text}</p>}
         <div className="meta">
           <span>{note.date}</span>
           {note.edited && <span className="sep edited">Edited</span>}

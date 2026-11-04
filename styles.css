@@ -552,3 +552,23 @@ a.crumb-link:hover { text-decoration: underline; }
 .reset-confirm > div { display: flex; justify-content: flex-end; gap: 8px; }
 .btn-solid.is-danger { background: var(--red-text); }
 .panel .composer-foot .toggle input { flex: 0 0 auto; }
+
+/* ---------- Review fixes: target size (WCAG 2.2 2.5.8), wrapping ---------- */
+.icon-btn { min-width: 24px; min-height: 24px; }
+.tip-trigger { min-width: 24px; min-height: 24px; place-items: center; margin: -5px -3px; }
+.tip-trigger.source-pill { min-width: 0; min-height: 24px; margin: 0; align-items: center; }
+.sort-btn, .more-btn, .client-ref { min-height: 24px; }
+.sort-btn { white-space: nowrap; }
+.link-btn { min-height: 24px; }
+a.link-btn:not(.is-inline) { display: inline-block; }
+.star-card .link-btn { min-height: 28px; }
+.id-line .icon-btn { width: 28px; height: 28px; }
+/* Provider tags keep their look; the click area grows to 24px tall. */
+.tag { position: relative; }
+a.tag::after { content: ""; position: absolute; inset: -2px -1px; }
+/* The panel's four action filters size to their labels instead of wrapping inside equal columns. */
+.panel .segmented.is-fill { display: flex; flex-wrap: wrap; border-radius: 20px; }
+.panel .segmented.is-fill .seg { flex: 1 1 auto; white-space: nowrap; padding: 6px 5px; gap: 3px; }
+/* Panel action items: edit and delete sit in their own column so long metadata never pushes them down. */
+.task-actions { display: flex; gap: 2px; align-self: flex-end; flex: 0 0 auto; }
+.task-actions .icon-btn { width: 30px; height: 30px; }

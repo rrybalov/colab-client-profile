@@ -249,7 +249,7 @@ export function Starred() {
           <label className="sr-only" htmlFor="starred-search">Search starred clients</label>
           <input className="input is-search" id="starred-search" type="search" placeholder="Search by name, MCI or SSN last 4" value={query} onChange={(e) => { setQuery(e.target.value); p.reset(); }} />
         </div>
-        <Table label="Starred clients" cols="52px minmax(150px,1.4fr) 130px 150px 64px 120px minmax(120px,1fr)" min={860}
+        <Table label="Starred clients" cols="52px minmax(150px,1.4fr) 156px 132px 64px 120px minmax(120px,1fr)" min={880}
           empty="No starred clients match. Clear the search or pick another filter."
           head={<>
             <div className="th" role="columnheader">Action</div>

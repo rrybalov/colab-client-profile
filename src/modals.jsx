@@ -124,7 +124,7 @@ function MissingModal({ onClose }) {
   return (
     <Modal id="missing" title="Report Missing Client" intro="If you can't see a particular client during this Client View pilot, please complete this form." narrow onClose={onClose}>
       <form className="view" style={{ gap: 18 }} noValidate onSubmit={submit}>
-        <h3 className="section-label">Who is the client are you trying to access?</h3>
+        <h3 className="section-label">Who is the client you are trying to access?</h3>
         <div className="form-grid is-2">
           <Field id="m-first" label="First Name" value={m.first} onChange={set('first')} placeholder="Enter first name" required />
           <Field id="m-last" label="Last Name" value={m.last} onChange={set('last')} placeholder="Enter last name" required />
