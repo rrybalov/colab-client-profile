@@ -238,7 +238,6 @@ textarea.input { resize: vertical; line-height: 1.45; }
 .demo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px 24px; padding: 4px 12px; }
 .demo-grid dt { font-size: 11px; font-weight: 700; }
 .demo-grid dd { font-size: 13px; color: var(--black); margin-top: 3px; }
-.as-of { display: block; font-size: 10px; color: var(--stone); }
 
 .enroll-list { display: flex; flex-direction: column; gap: 10px; }
 .enroll { border: 1px solid var(--ash); border-radius: var(--radius-lg); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -572,3 +571,17 @@ a.tag::after { content: ""; position: absolute; inset: -2px -1px; }
 /* Panel action items: edit and delete sit in their own column so long metadata never pushes them down. */
 .task-actions { display: flex; gap: 2px; align-self: flex-end; flex: 0 0 auto; }
 .task-actions .icon-btn { width: 30px; height: 30px; }
+
+/* ---------- Loading and error states (v3) ---------- */
+.loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px 0; font-size: 13px; color: var(--slate); opacity: 0; animation: fade-in .2s ease .25s forwards; }
+.loading.is-block { min-height: 160px; }
+.spinner { width: 18px; height: 18px; border-radius: 999px; border: 2px solid var(--ash); border-top-color: var(--blue); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fade-in { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } .loading { animation: none; opacity: 1; } }
+.load-error { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 16px; margin: 8px 0; border: 1px solid var(--red-text); border-radius: var(--radius-lg); background: var(--white); color: var(--black); font-size: 13px; }
+.load-error > .icon { color: var(--red-text); flex: 0 0 auto; }
+.load-error div { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
+.load-error span { color: var(--slate); }
+.app-gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.toast.is-error { background: var(--red-text); }

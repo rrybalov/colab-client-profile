@@ -27,6 +27,79 @@ npm run watch    # rebuilds on save and serves on http://localhost:8000
 
 Commit the rebuilt `app.js` with your source changes.
 
+## Test it
+
+```sh
+npm install
+npx playwright install chromium   # once
+npm test
+```
+
+`npm test` builds the app and runs `tests/e2e.mjs` in a real browser twice: once on the sample data in the browser and once against the mock API. It covers every page, filter, sort, save, undo, reload, dialog, loading and error state, plus accessibility, phone width and a check of every data point for all 64 clients. `node tests/e2e.mjs local` or `node tests/e2e.mjs api` runs one mode.
+
+## Connect a real API
+
+The app reads all data through one interface with two plug-ins (`src/data/sources/`):
+
+- **local**: sample data saved in the browser. This is the default.
+- **api**: a CoLab API over HTTP.
+
+To switch a deployed copy, edit `config.js`. No rebuild needed:
+
+```js
+window.COLAB_CONFIG = {
+  dataSource: 'api',
+  api: { baseUrl: 'https://colab.example.gov/api', credentials: 'include', headers: {} }
+};
+```
+
+`docs/API.md` is the contract a backend team builds to: every endpoint, request and record shape.
+
+To try it without a backend, run the mock API and open the app through it:
+
+```sh
+npm run mock-api                      # serves the app and the API on http://localhost:8787
+# open http://localhost:8787/?api=/api
+```
+
+`?api=<url>` in the address points one visit at an API. It only works while `config.js` is on sample data, so a live, API-backed site can't be redirected by a link.
+
+## Versions and rolling back
+
+Every release is kept on its own branch, so nothing is lost:
+
+| Branch | What it is |
+| --- | --- |
+| `archive/v1.0` | The first client profile, in plain JavaScript |
+| `archive/v1.1` | Home, My pages, Starred and search, in plain JavaScript |
+| `archive/v2.0` | The React rebuild with saved state and sample data |
+| `archive/v2.1` | Fixes from review: target sizes, Show more, panel layout, headers, typo |
+| `archive/v3.0` | The data layer, API support, loading and error states, tests |
+
+`CHANGELOG.md` lists what changed in each.
+
+**See an old version:** on GitHub, open the branch menu and pick an `archive/` branch. To run it, download that branch and open `index.html`.
+
+**Roll the live site back** to a version, keeping history (here, to v2.1):
+
+```sh
+git checkout main
+git revert --no-edit archive/v2.1..HEAD
+git push
+```
+
+Or, to make `main` exactly match an archived version, and throw away everything after it:
+
+```sh
+git checkout main
+git reset --hard archive/v2.1
+git push --force-with-lease
+```
+
+The second command rewrites `main`, so use the first unless you're sure.
+
+Data saved in a browser upgrades forward automatically (v2.x notes, stars and changes are kept in v3). Going back from v3 to v2.x resets that browser to the sample data.
+
 ## Publish with GitHub Pages
 
 1. In the repo, go to **Settings → Pages**.
@@ -82,11 +155,11 @@ Changes stay in place across reloads and between visits, in this browser:
 - **Where you were:** every filter, search box, sort, page number, rows-per-page choice, tab, expanded row, the CoLab you picked, whether the notes panel is open, and any open dialog.
 - **Drafts:** a half-written case note, action item or form survives a reload or a trip to another page.
 
-The full SSN is the one exception. It hides again on reload on purpose.
+The full SSN is the one exception. It is fetched only when someone clicks Show SSN or Copy SSN, so a real system can log each request, and it hides again on reload.
 
-Records also sync live between open tabs, so a "View All" page opened in a new tab stays in step with the profile.
+Changes show on screen at once. If the data source refuses one, the change is undone and an error explains why. With sample data, records also sync live between open tabs.
 
-**Reset sample data**, at the bottom of the sidebar, erases your changes and restores the sample data after a confirmation. Data lives in the browser's `localStorage` (`colab.db` for records, `colab.prefs` for UI state), so each browser and each person has their own copy.
+**Reset sample data**, at the bottom of the sidebar, erases your changes and restores the sample data after a confirmation. With sample data, records live in the browser's `localStorage` (`colab.db`), so each browser and each person has their own copy. UI state is always saved in the browser (`colab.prefs`). With an API, records live on the server and Reset sample data is hidden.
 
 ## Sample data
 
@@ -101,24 +174,42 @@ Dates are placed relative to the day the data is first created in a browser, so 
 
 Not wired yet: undo/redo, choose columns, row density and export on the Services table, and the Benefits tab, which has no design.
 
+Contact-detail sources and dates, custody facilities and admission and release reasons, provider contact details and full SSNs all come from the data, so a real API can supply them.
+
 ## Files
 
 | File | What it holds |
 | --- | --- |
-| `index.html` | Page shell; loads `styles.css` and `app.js` |
+| `index.html` | Page shell; loads `styles.css`, `config.js` and `app.js` |
+| `config.js` | Runtime settings: sample data or an API, and the API's address |
 | `styles.css` | ACDHS design tokens and every component style |
 | `app.js` | The built bundle. Don't edit it by hand |
-| `src/main.jsx` | Entry point: routes to a page, sets the title, mounts dialogs and notifications |
-| `src/store.jsx` | State: records and UI preferences, saving to `localStorage`, undo, cross-tab sync, reset |
+| `src/main.jsx` | Entry point: picks the data source, waits for the session, routes to a page |
+| `src/config.js` | Reads `config.js` and the `?api=` override |
 | `src/router.jsx` | Hash routes and the `Link` component |
-| `src/ui.jsx` | Shared pieces: tables, sort headers, pagers, filter cards, note and action rows, dialog |
-| `src/pages/hub.jsx` | Sidebar, Home, My Action Items, My Case Notes, Starred Clients |
-| `src/pages/client.jsx` | Client profile, its tabs, details pages, full-page notes and action items, the side panel |
-| `src/modals.jsx` | Search, Report Missing Client, Report an Issue |
-| `src/data/seed.js` | The sample-data generator. Swap it for API calls when the backend exists |
+| `src/state/store.jsx` | State: the record cache, query status, saved UI choices, notifications, optimistic saves |
+| `src/state/data.js` | Hooks that load and return records (`useClient`, `useMyNotes`, `useSearch`…) and every change (`useMutations`) |
+| `src/state/modal.js` | Opening and closing dialogs |
+| `src/data/schema.js` | Every record's shape, and the normalizers API responses pass through |
+| `src/data/backend.js` | What the server does: search, filters, saving. Shared by the local source and the mock API |
+| `src/data/sources/local.js` | Sample data in the browser, with upgrade from older saved data |
+| `src/data/sources/http.js` | The real API client |
+| `src/data/seed.js` | The sample-data generator |
+| `src/tables.js` | Every sortable table's columns and widths |
 | `src/lib.js` | Date, name, sort and summary helpers |
+| `src/ui/` | Icons, generic controls (tables, pagers, dialogs, loading and error states) and record pieces (note and action rows, star button) |
+| `src/pages/hub/` | Sidebar, Home, My Action Items, My Case Notes, Starred Clients |
+| `src/pages/client/` | Client profile: frame, header, one file per tab, details pages, full-page lists, the side panel |
+| `src/modals/` | Search, Report Missing Client, Report an Issue |
+| `tools/mock-api.mjs` | A stand-in API serving the sample data |
+| `tests/e2e.mjs` | The browser test suite |
+| `docs/API.md` | The API contract |
 
-Any piece of UI state that should survive a reload uses `usePref(key, default)` in place of `useState`. Record changes go through `mutate(fn, toastText, undoable)`.
+How the pieces fit:
+
+- Pages never call the data source. They use the hooks in `src/state/data.js`, which load what a screen needs, cache it, and return it ready to show.
+- Records sit in one cache keyed by id, so a star or a completed item updates every screen at once.
+- UI state that should survive a reload uses `usePref(key, default)` in place of `useState`.
 
 ## Design system
 

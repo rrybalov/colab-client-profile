@@ -1,17 +1,21 @@
 {
   "name": "colab-client-profile",
   "private": true,
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "CoLab case-conferencing prototype for Allegheny County DHS, built with React.",
   "scripts": {
     "build": "esbuild src/main.jsx --bundle --minify --jsx=automatic --define:process.env.NODE_ENV='\"production\"' --target=es2019 --outfile=app.js",
-    "watch": "esbuild src/main.jsx --bundle --jsx=automatic --define:process.env.NODE_ENV='\"development\"' --outfile=app.js --watch --servedir=."
+    "watch": "esbuild src/main.jsx --bundle --jsx=automatic --define:process.env.NODE_ENV='\"development\"' --outfile=app.js --watch --servedir=.",
+    "mock-api": "node tools/mock-api.mjs",
+    "test": "npm run build && node tests/e2e.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "esbuild": "^0.28.0"
-  }
+    "esbuild": "^0.28.0",
+    "playwright": "^1.50.0"
+  },
+  "type": "module"
 }

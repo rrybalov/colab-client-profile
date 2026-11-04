@@ -2,7 +2,7 @@
 // Every person, ID and record here is fictional. The generator is deterministic (same seed, same data),
 // and dates are placed relative to the day the data is first created in a browser.
 
-export const SEED_VERSION = 3;
+export const SEED_VERSION = 4;
 
 // ------------------------------------------------------------------ random helpers
 function mulberry32(a) {
@@ -32,13 +32,13 @@ const digits = (n) => Array.from({ length: n }, () => int(0, 9)).join('');
 
 // ------------------------------------------------------------------ dates
 const pad = (n) => String(n).padStart(2, '0');
-export function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-export function toUS(d) { return pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + '/' + d.getFullYear(); }
+function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function toUS(d) { return pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + '/' + d.getFullYear(); }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function today() { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }
 
 // ------------------------------------------------------------------ reference lists
-export const COLABS = [
+const COLABS = [
   { id: 'IPV', name: 'IPV CoLab', tag: 'IPV' },
   { id: 'ACGO', name: 'ACGO', tag: 'ACGO' },
   { id: 'Allegheny Go', name: 'Allegheny Go', tag: 'ALLEGHENY GO' },
@@ -46,7 +46,7 @@ export const COLABS = [
   { id: 'Wellness Checks', name: 'Wellness Checks', tag: 'WELLNESS CHECKS' }
 ];
 
-export const STAFF = [
+const STAFF = [
   { id: 'u1', first: 'Logan', last: 'Bialik', org: 'DHS', email: 'logan.bialik@alleghenycounty.us', initials: 'LB' },
   { id: 'u2', first: 'Dana', last: 'Whitfield', org: 'DHS', email: 'dana.whitfield@alleghenycounty.us', initials: 'DW' },
   { id: 'u3', first: 'Marcus', last: 'Lee', org: 'CYF', email: 'marcus.lee@alleghenycounty.us', initials: 'ML' },
@@ -56,7 +56,7 @@ export const STAFF = [
   { id: 'u7', first: 'Ana', last: 'Morales', org: 'OBH', email: 'ana.morales@alleghenycounty.us', initials: 'AM' },
   { id: 'u8', first: 'Sam', last: 'Kowalczyk', org: 'CYF', email: 'sam.kowalczyk@alleghenycounty.us', initials: 'SK' }
 ];
-export const ME = 'u1';
+const ME = 'u1';
 
 const FIRST = ['Aaliyah', 'Aaron', 'Abdi', 'Alicia', 'Amara', 'Andre', 'Angela', 'Brandon', 'Brianna', 'Carlos', 'Carmen', 'Chloe', 'Christopher', 'Danielle', 'DeShawn', 'Destiny', 'Diego', 'Elena', 'Emily', 'Eric', 'Fatima', 'Gabriel', 'Hannah', 'Hector', 'Imani', 'Isaiah', 'Jacob', 'Jamal', 'Jasmine', 'Jennifer', 'Jordan', 'Joseph', 'Kayla', 'Keith', 'Kevin', 'Lamar', 'Latoya', 'Lauren', 'Lena', 'Malik', 'Mariah', 'Mark', 'Megan', 'Mei', 'Michael', 'Nathan', 'Nia', 'Omar', 'Paul', 'Rachel', 'Raymond', 'Rosa', 'Ryan', 'Sabrina', 'Samantha', 'Shawn', 'Sophia', 'Tamika', 'Terrence', 'Tiffany', 'Trevor', 'Valerie', 'Victor', 'Wanda', 'Xavier', 'Yolanda', 'Zoe'];
 const LAST = ['Adams', 'Alvarez', 'Bennett', 'Brooks', 'Campbell', 'Chen', 'Coleman', 'Cruz', 'Davis', 'Dixon', 'Edwards', 'Fischer', 'Foster', 'Garcia', 'Gibson', 'Graham', 'Hayes', 'Henderson', 'Hughes', 'Jackson', 'Jenkins', 'Kaminski', 'Kim', 'Kowalski', 'Lopez', 'Marshall', 'Mitchell', 'Moore', 'Murphy', 'Nguyen', 'Novak', 'Owens', 'Patel', 'Perry', 'Ramirez', 'Reed', 'Reyes', 'Robinson', 'Russell', 'Sanders', 'Shrestha', 'Simmons', 'Stewart', 'Sullivan', 'Thomas', 'Tran', 'Turner', 'Walker', 'Washington', 'Williams', 'Wright', 'Yusuf', 'Zielinski'];
@@ -79,7 +79,7 @@ const PLACES = [
   { city: 'Braddock', zip: '15104', school: 'Woodland Hills School District', ward: 'Braddock Borough', streets: ['Braddock Ave', 'Talbot Ave', 'Library St'] }
 ];
 
-export const PROVIDERS = [
+const PROVIDERS = [
   { name: 'Mercy', facilities: ['Mercy Behavioral Health', '2nd Ave Commons'], address: '1200 Reedsdale Street, Pittsburgh, PA 15233', phone: '(412) 555-0110', email: 'intake@mercy.example.org' },
   { name: 'UPMC', facilities: ['UPMC Western Psychiatric Hospital', 'UPMC Mercy'], address: '3811 O\'Hara Street, Pittsburgh, PA 15213', phone: '(412) 555-0124', email: 'referrals@upmc.example.org' },
   { name: 'P.O.W.E.R.', facilities: ['P.O.W.E.R. Outpatient', 'Wood Street Commons'], address: '7445 Church Street, Swissvale, PA 15218', phone: '(412) 555-0137', email: 'office@power.example.org' },
@@ -354,7 +354,7 @@ function jimothy(t) {
     custody: { total: '17 yrs 5 mo', events: 19, facilities: 12 }
   };
   const client = {
-    id: 'c1', first: 'Jimothy', last: 'Jones', dob: '02/09/2000', gender: 'Male', legalSex: 'Male', race: 'White', ethnicity: 'Not Hispanic/Latinx', marital: 'Never Married/Single', living: 'With family', language: 'English',
+    id: 'c1', first: 'Jimothy', last: 'Jones', household: false, members: null, dob: '02/09/2000', gender: 'Male', legalSex: 'Male', race: 'White', ethnicity: 'Not Hispanic/Latinx', marital: 'Never Married/Single', living: 'With family', language: 'English',
     mci: '1234567890', ssn4: '1234', dhs: '470106828', dpw: '123456778890', phone: '(412) 123-4567', email: 'thisisafakeemail@gmail.com',
     address: { street: '950 Second Avenue', city: 'Pittsburgh', state: 'PA', zip: '15219', school: 'Pittsburgh School District', ward: 'Ward 15, District 8 (Pittsburgh)', facility: 'Allegheny County Jail [facility or building name]' },
     colabs: ['IPV', 'ACGO'], starred: 'IPV', favorited: d(-300),
@@ -446,5 +446,40 @@ export function buildSeed() {
     notes.push(...makeNotes(t, c, 'n' + i + '-'));
     actions.push(...makeActions(t, c, 'a' + i + '-'));
   }
-  return { version: SEED_VERSION, createdAt: toISO(t), clients, notes, actions, reports: [] };
+  clients.forEach((c) => enrich(c, t));
+  return {
+    version: SEED_VERSION, createdAt: toISO(t), userId: ME,
+    staff: STAFF.map((x) => ({ ...x })), colabs: COLABS.map((x) => ({ ...x })), providers: PROVIDERS.map((x) => ({ ...x })),
+    clients, notes, actions, reports: []
+  };
+}
+
+// ------------------------------------------------------------------ fields added in seed version 4
+// Derived from a hash of the client id rather than the random stream, so every earlier value stays the same
+// and stored data from version 3 can be upgraded in place (see enrich in the local data source).
+function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+const ADMISSIONS = ['Probation violation', 'New charge', 'Court order', 'Parole violation', 'Bench warrant'];
+const RELEASES = ['Sentence completed', 'Released to parole', 'Bail posted', 'Transferred', 'Released to treatment'];
+const FACILITIES = { prison: ['SCI Greene', 'SCI Fayette', 'SCI Pine Grove'], hold: ['UPMC Western Psychiatric Hospital', 'Allegheny General Hospital'], housing: ['Renewal Center', 'Allegheny County Alternative Housing'] };
+export function enrich(c, t) {
+  const h = hash(c.id);
+  const ago = (n) => toUS(addDays(t, -n));
+  if (!c.sources) {
+    c.sources = c.id === 'c1'
+      ? { address: { source: 'PA DHS', asOf: '10/14/2026' }, phone: { source: 'ACGO', asOf: '09/22/2026' }, email: { source: 'ACGO', asOf: '09/22/2026' } }
+      : { address: { source: h % 3 ? 'PA DHS' : 'ACGO', asOf: ago(5 + (h % 70)) }, phone: { source: 'ACGO', asOf: ago(3 + ((h >>> 3) % 120)) }, email: { source: 'ACGO', asOf: ago(3 + ((h >>> 3) % 120)) } };
+  }
+  if (!c.ssnFull) {
+    c.ssnFull = c.id === 'c1' ? '123-45-1234' : String(100 + (h % 665)).padStart(3, '0') + '-' + String(10 + ((h >>> 8) % 89)) + '-' + c.ssn4;
+  }
+  if (c.justice) {
+    c.justice.incarceration.forEach((g) => g.items.forEach((e, i) => {
+      if (e.agency) return;
+      e.agency = 'PA Board of Probation & Parole';
+      e.admission = c.id === 'c1' ? '[Admission reason]' : ADMISSIONS[(h + i) % ADMISSIONS.length];
+      e.release = c.id === 'c1' ? '[Release type]' : RELEASES[((h >>> 4) + i) % RELEASES.length];
+      if (c.id !== 'c1' && /^\[/.test(e.facility || '[')) { const list = FACILITIES[e.kind] || ['[Facility]']; e.facility = list[(h + i) % list.length]; }
+    }));
+  }
+  return c;
 }
