@@ -2,20 +2,30 @@
 
 A clickable prototype of **CoLab**, Allegheny County DHS's case-conferencing tool. It covers a staff member's home page, their own action items, case notes and starred clients, client search, and the full client profile.
 
-It is a static site: plain HTML, CSS and JavaScript, with no framework and no build step.
+It is built with React and bundled with esbuild into a single `app.js`, which is committed so GitHub Pages can serve the site with no build on its side.
 
 **Live site:** https://rrybalov.github.io/colab-client-profile/ (once GitHub Pages is on)
 
-> **All data is fictional.** Names, IDs, SSNs, cases and records in `data.js` are sample values for design review. Never put real client data in this repo.
+> **All data is fictional.** Every name, ID, SSN, case and record comes from the sample-data generator in `src/data/seed.js`. Never put real client data in this repo.
 
 ## Run it
 
-Open `index.html` in a browser, or serve the folder:
+The built `app.js` is in the repo, so you can open `index.html` directly or serve the folder:
 
 ```sh
 python3 -m http.server 8000
 # then open http://localhost:8000
 ```
+
+To change the code, install and rebuild:
+
+```sh
+npm install
+npm run build    # writes app.js
+npm run watch    # rebuilds on save and serves on http://localhost:8000
+```
+
+Commit the rebuilt `app.js` with your source changes.
 
 ## Publish with GitHub Pages
 
@@ -38,8 +48,10 @@ Every page has its own address, so you can link straight to it and the browser's
 | Client profile tabs | `#client/c1/overview`, `/services`, `/program-info`, `/providers`, `/benefits` |
 | Client: all case notes | `#client/c1/case-notes` |
 | Client: all action items | `#client/c1/action-items` |
+| Service details | `#client/c1/service/s1` |
+| Provider details | `#client/c1/provider/Mercy` |
 
-`c1` is Jimothy Jones. Any client ID from `data.js` works. The old single-page links (`#services`, `#overview` and so on) still open Jimothy Jones.
+`c1` is Jimothy Jones, the client drawn in Figma. `c2` to `c64` are generated clients. The old single-page links (`#services`, `#overview` and so on) still open Jimothy Jones.
 
 ## What works
 
@@ -52,7 +64,7 @@ Every page has its own address, so you can link straight to it and the browser's
 | Starred Clients | Filter cards for private stars and each CoLab; search; sortable name, date of birth and date favorited; unstar with undo; pagination |
 | Search for Clients | Search by any combination of fields; results, no-match and too-many-results states; star from results; open a client; Report Missing Client form with required fields and confirmation |
 | Report an Issue | Issue type, details, contact info; submit enables when complete; confirmation |
-| Client profile | Everything from the first prototype: tabs, service and provider details, search, filters, sortable tables, the notes and action items panel |
+| Client profile | Tabs, service and provider details (each with its own address), search, filters, sortable and paged tables, the notes and action items panel; clients with no justice records or enrollments show empty states |
 | Client: All Case Notes | Add with a Restricted toggle, edit, delete with undo, date sort, pagination |
 | Client: All Action Items | Add, edit, complete, delete with undo; Open / Overdue / Completed; pagination |
 
@@ -62,22 +74,51 @@ Other details carried over from the Figma file:
 - The PA DHS source pill explains where the data comes from.
 - Program Enrollment spreads across the page when the notes panel is collapsed.
 
-Changes made in the prototype, such as new notes, completed items and stars, live in memory only. A page reload resets them to the sample data.
+## Everything you do is saved
 
-Sample due dates and note dates move forward with the calendar, so "overdue" and "recent" stay meaningful no matter when you open the site.
+Changes stay in place across reloads and between visits, in this browser:
 
-Not wired yet: undo/redo, choose columns, row density and export on the Services table; the Services table's own pagination; and the Benefits tab, which has no design.
+- **Records:** new, edited and deleted case notes; completed, added and edited action items; stars; reports from Report Missing Client and Report an Issue.
+- **Where you were:** every filter, search box, sort, page number, rows-per-page choice, tab, expanded row, the CoLab you picked, whether the notes panel is open, and any open dialog.
+- **Drafts:** a half-written case note, action item or form survives a reload or a trip to another page.
+
+The full SSN is the one exception. It hides again on reload on purpose.
+
+Records also sync live between open tabs, so a "View All" page opened in a new tab stays in step with the profile.
+
+**Reset sample data**, at the bottom of the sidebar, erases your changes and restores the sample data after a confirmation. Data lives in the browser's `localStorage` (`colab.db` for records, `colab.prefs` for UI state), so each browser and each person has their own copy.
+
+## Sample data
+
+`src/data/seed.js` generates 64 clients from a fixed seed, so everyone sees the same people:
+
+- Jimothy Jones (`c1`) keeps the record drawn in Figma.
+- The other 63 have names, households, dates of birth, contact details, Pittsburgh-area addresses, CoLab memberships, services and service instances from seven providers, benefit enrollments, and for some, court, jail, probation and custody history.
+- Case notes and action items are written from templates that fit each client's CoLabs, programs and providers.
+- Eight staff members write notes and own action items. You are signed in as Logan Bialik, so the "My" pages show only Logan's notes and items.
+
+Dates are placed relative to the day the data is first created in a browser, so "overdue" and "recent" stay meaningful.
+
+Not wired yet: undo/redo, choose columns, row density and export on the Services table, and the Benefits tab, which has no design.
 
 ## Files
 
 | File | What it holds |
 | --- | --- |
-| `index.html` | Mount points for the app, modals and notifications |
+| `index.html` | Page shell; loads `styles.css` and `app.js` |
 | `styles.css` | ACDHS design tokens and every component style |
-| `data.js` | Sample data. Swap this for API calls when the backend exists |
-| `app.js` | Routing, state, rendering and interactions |
+| `app.js` | The built bundle. Don't edit it by hand |
+| `src/main.jsx` | Entry point: routes to a page, sets the title, mounts dialogs and notifications |
+| `src/store.jsx` | State: records and UI preferences, saving to `localStorage`, undo, cross-tab sync, reset |
+| `src/router.jsx` | Hash routes and the `Link` component |
+| `src/ui.jsx` | Shared pieces: tables, sort headers, pagers, filter cards, note and action rows, dialog |
+| `src/pages/hub.jsx` | Sidebar, Home, My Action Items, My Case Notes, Starred Clients |
+| `src/pages/client.jsx` | Client profile, its tabs, details pages, full-page notes and action items, the side panel |
+| `src/modals.jsx` | Search, Report Missing Client, Report an Issue |
+| `src/data/seed.js` | The sample-data generator. Swap it for API calls when the backend exists |
+| `src/lib.js` | Date, name, sort and summary helpers |
 
-`app.js` keeps one `state` object. `render()` rebuilds the page from it and restores focus and scroll position afterwards. Clicks route through `data-action` attributes and form fields through `data-model`.
+Any piece of UI state that should survive a reload uses `usePref(key, default)` in place of `useState`. Record changes go through `mutate(fn, toastText, undoable)`.
 
 ## Design system
 
