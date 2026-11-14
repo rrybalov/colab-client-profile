@@ -6,8 +6,9 @@ import { useModalControls } from '../state/modal.js';
 import { SearchModal } from './Search.jsx';
 import { MissingModal, IssueModal } from './Reports.jsx';
 import { AddressModal } from '../pages/client/address/AddressModal.jsx';
+import { HistoryModal, UrgentModal } from '../pages/asc/History.jsx';
 
-const DIALOGS = { search: SearchModal, missing: MissingModal, issue: IssueModal, address: AddressModal };
+const DIALOGS = { search: SearchModal, missing: MissingModal, issue: IssueModal, address: AddressModal, ascHistory: HistoryModal, ascUrgent: UrgentModal };
 
 export function Modals() {
   const [modal] = usePref('modal', null);

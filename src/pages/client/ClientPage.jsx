@@ -16,11 +16,12 @@ import { Providers } from './Providers.jsx';
 import { ServiceDetail, ProviderDetail } from './Details.jsx';
 import { ClientNotesPage, ClientActionsPage } from './Notes.jsx';
 import { AddressHistory } from './address/AddressHistory.jsx';
+import { AscTab } from '../asc/AscTab.jsx';
 
 function Benefits() {
   return <div className="empty-box"><h2 className="title" style={{ fontSize: 18, fontWeight: 600 }}>Benefits</h2><p>This tab is not designed yet. Benefit enrollments currently show under Client Overview › Program Enrollment.</p></div>;
 }
-const TAB_VIEWS = { services: Services, overview: Overview, 'program-info': Program, providers: Providers, benefits: Benefits };
+const TAB_VIEWS = { services: Services, overview: Overview, 'program-info': Program, providers: Providers, benefits: Benefits, asc: AscTab };
 
 function Missing({ what, client }) {
   return <div className="empty-box"><p>This {what} isn't in {fullName(client)}'s record.</p><Link className="link-btn is-inline" to={tabRoute(client.id, 'services')}>Back to Services</Link></div>;
@@ -72,7 +73,7 @@ export function ClientPage({ route }) {
       <section className="card">
         <div className="tabs-wrap">
           <nav className="tabs" aria-label="Client sections">
-            {CLIENT_TABS.map(([id, label]) => <Link key={id} className="tab" to={tabRoute(client.id, id)} focus={false} aria-current={route.tab === id ? 'page' : undefined}>{label}</Link>)}
+            {CLIENT_TABS.filter(([id]) => id !== 'asc' || client.colabs.indexOf('ASC') >= 0 || route.tab === 'asc').map(([id, label]) => <Link key={id} className="tab" to={tabRoute(client.id, id)} focus={false} aria-current={route.tab === id ? 'page' : undefined}>{label}</Link>)}
           </nav>
         </div>
         <View client={client} />

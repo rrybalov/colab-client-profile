@@ -1,6 +1,6 @@
 // Data source for a real CoLab API. Endpoints and payloads are documented in docs/API.md.
 // Every response passes through the normalizers in ../schema.js.
-import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider } from '../schema.js';
+import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange } from '../schema.js';
 
 export class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -50,6 +50,15 @@ export function createHttpSource({ baseUrl, headers = {}, credentials = 'same-or
     updateAction: (id, patch) => request('PATCH', '/action-items/' + enc(id), patch).then(normalizeAction),
     deleteAction: (id) => request('DELETE', '/action-items/' + enc(id)),
     getProvider: (name) => request('GET', '/providers/' + enc(name)).then(normalizeProvider),
-    submitReport: (body) => request('POST', '/reports', body)
+    submitReport: (body) => request('POST', '/reports', body),
+
+    listContacts: (q = {}) => request('GET', '/asc/contacts' + (query(q) ? '?' + query(q) : '')).then((l) => l.map(normalizeContactSummary)),
+    getContact: (id) => request('GET', '/asc/contacts/' + enc(id)).then(normalizeContact),
+    createContact: (body) => request('POST', '/asc/contacts', body).then(normalizeContact),
+    updateContact: (id, patch) => request('PATCH', '/asc/contacts/' + enc(id), patch).then(contactChange),
+    linkContact: (id, body) => request('POST', '/asc/contacts/' + enc(id) + '/link', body).then(contactChange),
+    closeContact: (id, body) => request('POST', '/asc/contacts/' + enc(id) + '/close', body).then(normalizeContact),
+    lookupContact: (ref) => request('GET', '/asc/contacts/lookup?ref=' + enc(ref)).then(normalizeContactSummary),
+    getContactHistory: (q) => request('GET', '/asc/history?' + query(q)).then(normalizeHistory)
   };
 }

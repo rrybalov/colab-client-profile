@@ -86,6 +86,34 @@ It **never** includes the full SSN.
 
 **Provider** `{ name, address, phone, email, facilities }`
 
+**Client** also carries two optional ASC fields: `guardian: { name, relationship, phone, note } | null` and `coverage: { plan, status, asOf } | null` (coverage on file, shown as a quick check during intake).
+
+### ASC (Administrative Service Coordination)
+
+A **Contact** is one phone call or in-person visit. It starts anonymous. `clientId` is set once the person is identified and enrolled in ASC; until then its case notes and action items live on the contact itself.
+
+**Contact** `{ id, ref, channel, logId, site, startedAt, endedAt, status, closedKind, staff, clientId, identity, candidateId, path, group, priorRefs, linkedPrior, unverifiedName, anon, intake, screening, needs, interactions, followUp, onsite, notes, actions, links, urgent, client, candidate, possibleLinks }`
+
+| Field | Meaning |
+| --- | --- |
+| `ref` | Event ID given to the caller, `EV-26-000184`. A returning caller reads it back. |
+| `channel` | `phone` or `person`. `logId` is the Call Log ID or Visit ID; `site` is where an in-person visit happens. |
+| `startedAt`, `endedAt` | ISO 8601 timestamps. `status` is `open` or `closed`; `closedKind` is `anon`, `client` or `urgent`. |
+| `identity` | `matched` (found in MCI), `new` (registered during the contact), `unverified` (name only, no MCI record) or `null`. |
+| `candidateId` | A client picked during intake but not yet confirmed and enrolled. |
+| `path` | `anon` once they choose to stay anonymous, `client` once they share info. |
+| `group`, `priorRefs` | Contacts tied together by a returning caller's reference number. Linking the contact to a client links the whole group. |
+| `intake` | `{ safety, caller, callerOther, callerName, age, story, reason, reasonText, coverage, coverageDetail, found, foundOther, privacy, callerConfirmed, coverageConfirmed }` |
+| `screening` | `{ mh, ph, house, food, su }`, each an answer string or `null` (not asked). |
+| `needs` | `[{ id, name, urg: Routine/Urgent/Crisis, outcome, outcomeNote }]` |
+| `interactions` | `[{ id, what, need, type, how, min, place, notes }]`, one per resource or hand-off. Units are `max(1, round(min / 15))` [state rounding rule to confirm]. The service code is the `T1016…` code in `type`. |
+| `followUp` | `{ ok: Yes/No/null, how, time }`. Follow-ups are scheduled only after `ok` is `Yes`. |
+| `onsite` | `{ idCheck, consentSigned, docs }`, in person only. `idCheck` records that an ID was seen, never its number. |
+| `links` | `[{ actionId, ixId, auto }]`: action items made from this contact. `ixId` is the interaction a reminder came from; `auto` is `d7` or `d90` for the automatic follow-ups. |
+| `client`, `candidate`, `possibleLinks` | Read-only, added by the server: summaries of the client, the candidate, and earlier anonymous contacts that may be the same person. |
+
+**ContactSummary** (lists) `{ id, ref, channel, site, startedAt, endedAt, status, closedKind, staff, clientId, identity, path, clientName, anonName, needs: [{ name, urg, outcome }], ixCount, ixMin, ixUnits }`
+
 ## Endpoints
 
 | Method and path | Returns | Notes |
@@ -108,6 +136,17 @@ It **never** includes the full SSN.
 | `GET /me/action-items` | `{ actionItems: ActionItem[], clients: ClientSummary[] }` | Action items assigned to the signed-in person, plus their clients. |
 | `GET /providers/:name` | `Provider` | Contact details for the provider details page. |
 | `POST /reports` | `{ id }` (201) | Report Missing Client (`kind: "missing"`) and Report an Issue (`kind: "issue"`). Stores the form fields and the page they came from (`page`). |
+| `GET /clients/search?…&dob=&zip=` | as above | ASC adds `dob` (`yyyy-mm-dd` or `mm/dd/yyyy`, exact) and `zip` (prefix). |
+| `GET /asc/contacts?status=&clientId=` | `ContactSummary[]` | Newest first. Both filters optional. |
+| `POST /asc/contacts` | `Contact` (201) | Body `{ channel, clientId? }`. Starts the clock and assigns `ref` and `logId`. With `clientId` (started from a client's ASC tab) the client must already be in ASC. |
+| `GET /asc/contacts/lookup?ref=` | `ContactSummary` | A returning caller's reference number; the digits are enough. `404` if none. |
+| `GET /asc/contacts/:id` | `Contact` | |
+| `PATCH /asc/contacts/:id` | `{ contact, notes, actions, removeActions }` | Body: any of `intake`, `screening`, `followUp`, `onsite`, `anon` (merged one level deep); `needs`, `interactions`, `notes`, `actions` (replaced whole); `channel`, `site`, `path`, `candidateId`, `unverifiedName`, `identity: "unverified"|null`, `linkedPrior: "linked"|"no"`, `priorRef` (attach a returning caller's earlier contacts), and the link operations `addLinks: [{ actionId, ixId }]`, `removeLinks: [actionId]`, `dropIxLinks: ixId`. The server keeps the two automatic follow-ups in step with `followUp` and returns the client action items it created or removed. |
+| `POST /asc/contacts/:id/link` | `{ contact, client, notes, actions, removeActions }` | Body `{ clientId }` for a client found in MCI, or `{ newClient: { first, last, dob, gender, ssn?, phone?, street?, city?, zip?, county?, living?, language? } }` to register one. Enrolls them in ASC (adds the `ASC` CoLab and an enrollment), moves the contact's notes and action items (and those of every contact in its group) to the client tagged `ASC`, and schedules follow-ups if allowed. Returns everything that changed. |
+| `POST /asc/contacts/:id/close` | `Contact` | Body `{}` to close normally: every need needs an `outcome`, else `400`. Or `{ urgent: { dest, how, need, note } }` for urgent routing: that need closes as Transferred to crisis and the others stay open. |
+| `GET /asc/history?contactId=` or `?clientId=` | `{ openItems, contacts }` | What a coordinator sees when someone comes back: open needs and open ASC action items first, then each earlier contact with who handled it, its needs and outcomes, interactions, screening and notes. |
+
+**Automatic follow-ups.** When a contact has a client and `followUp.ok` is `Yes`, the server creates two action items, tagged `ASC` and assigned to the contact's coordinator: a follow-up 7 business days after the contact (weekends skipped) and a check-in 90 days after, moved to Monday if it lands on a weekend. Changing the way to reach them rewrites the first one's text; answering `No` deletes any that aren't done. County holidays are not skipped yet [not decided].
 
 ## What the app does with responses
 
@@ -119,4 +158,5 @@ It **never** includes the full SSN.
 
 - Paging for very long note or action-item lists. Today each client's list comes back whole.
 - Who may see restricted notes. The server should filter them; the app shows whatever it receives.
-- Choosing a CoLab tag for a new note or action item. The design has no control for it yet, so new ones are `PERSONAL`.
+- Choosing a CoLab tag for a new note or action item. The design has no control for it yet, so new ones are `PERSONAL`, except during an ASC contact, where they are `ASC`.
+- ASC: real service codes and place-of-service codes (shown as `[code TBD]`), the state's unit rounding rule, county holidays in the 7-day follow-up, consent forms and document scanning (the prototype records that they happened), and the referral step that follows intake.

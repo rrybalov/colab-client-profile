@@ -4,8 +4,9 @@
 
 import { C1_ADDRESSES } from './address-c1.js';
 import { makeAddressHistory } from './address-gen.js';
+import { seedAsc } from './asc-seed.js';
 
-export const SEED_VERSION = 5;
+export const SEED_VERSION = 6;
 
 // ------------------------------------------------------------------ random helpers
 function mulberry32(a) {
@@ -449,12 +450,14 @@ export function buildSeed() {
     notes.push(...makeNotes(t, c, 'n' + i + '-'));
     actions.push(...makeActions(t, c, 'a' + i + '-'));
   }
-  clients.forEach((c) => enrich(c, t));
-  return {
+  const db = {
     version: SEED_VERSION, createdAt: toISO(t), userId: ME,
     staff: STAFF.map((x) => ({ ...x })), colabs: COLABS.map((x) => ({ ...x })), providers: PROVIDERS.map((x) => ({ ...x })),
     clients, notes, actions, reports: []
   };
+  seedAsc(db, t); // ASC comes last and uses no random numbers, so the records above are unchanged
+  clients.forEach((c) => enrich(c, t));
+  return db;
 }
 
 // ------------------------------------------------------------------ fields added in seed version 4

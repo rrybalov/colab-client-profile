@@ -212,6 +212,8 @@ export function Modal({ id, title, intro, icon, narrow, children, onClose, focus
       const nodes = [...el.querySelectorAll('button:not([disabled]), input, select, textarea, a[href]')].filter((n) => n.offsetParent !== null);
       if (!nodes.length) return;
       const f = nodes[0], l = nodes[nodes.length - 1];
+      // Focus that has left the dialog (a click on the backdrop, say) comes back into it.
+      if (!el.contains(document.activeElement)) { e.preventDefault(); (e.shiftKey ? l : f).focus(); return; }
       if (e.shiftKey && document.activeElement === f) { e.preventDefault(); l.focus(); }
       else if (!e.shiftKey && document.activeElement === l) { e.preventDefault(); f.focus(); }
     };

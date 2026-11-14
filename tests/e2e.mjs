@@ -68,7 +68,7 @@ async function run(mode) {
     check('address defaults to #home', pg.url().endsWith('#home'));
     check('page title', (await pg.title()) === 'CoLab Home · CoLab');
     const db = await source();
-    check('64 clients in the data', db.clients.length === 64, db.clients.length);
+    check('65 clients in the data (64 plus Jayden Ruiz for ASC)', db.clients.length === 65, db.clients.length);
     check('notes and action items in the data', db.notes.length > 100 && db.actions.length > 80);
     check('Reset sample data only on sample data', (await count('text=Reset sample data')) === (api ? 0 : 1));
   });
@@ -642,18 +642,18 @@ async function run(mode) {
         if (a.sources.some((s) => !A.SOURCE_BUCKETS.includes(s))) wrong.push(c.id + ' ' + a.id + ' unknown source');
       }
     }
-    check('badges, dialogs, timelines and dates for all 64 clients', wrong.length === 0, wrong.slice(0, 6));
+    check('badges, dialogs, timelines and dates for all 65 clients', wrong.length === 0, wrong.slice(0, 6));
   });
 
   await part('Every client renders every view', async () => {
     const bad = [];
-    for (let i = 1; i <= 64; i++) {
+    for (let i = 1; i <= 65; i++) {
       for (const t of ['overview', 'services', 'program-info', 'providers', 'case-notes', 'action-items']) {
         await pg.goto(BASE + `#client/c${i}/${t}`);
         await pg.waitForSelector('.client-head', { timeout: 4000 }).catch(() => bad.push(`c${i}/${t}`));
       }
     }
-    check('64 clients × 6 views', bad.length === 0, bad.slice(0, 5));
+    check('65 clients × 6 views', bad.length === 0, bad.slice(0, 5));
     await go('#client/c999/overview');
     await pg.waitForSelector('text=Client not found');
     check('unknown client says so', true);
@@ -691,7 +691,7 @@ async function run(mode) {
           if ((await count('.table[aria-label="Case history"] .tr.is-row')) !== c.justice.cases.length) wrong.push(c.id + ' cases');
         } else if (!(await text('.empty-box')).includes('No court')) wrong.push(c.id + ' justice empty state');
       }
-      check('names, IDs, contact, sources, counts for all 64 clients', wrong.length === 0, wrong.slice(0, 6));
+      check('names, IDs, contact, sources, counts for all 65 clients', wrong.length === 0, wrong.slice(0, 6));
     });
 
     await part('Sync between tabs', async () => {
@@ -721,7 +721,7 @@ async function run(mode) {
       await pg.waitForSelector('#all-notes-h');
       check('notes written in v2.1 are kept', (await count('text=Written in v2.1')) === 1);
       const after = await source();
-      check('upgraded data gains the new fields', after.version === 5 && !!after.staff && !!after.clients[0].sources && !!after.clients[0].ssnFull && after.clients.every((c) => c.addresses && c.addresses.length >= 3));
+      check('upgraded data gains the new fields', after.version === 6 && after.contacts.length > 0 && !!after.staff && !!after.clients[0].sources && !!after.clients[0].ssnFull && after.clients.every((c) => c.addresses && c.addresses.length >= 3));
     });
 
     await part('Upgrade from v3.0 saved data', async () => {
@@ -740,10 +740,28 @@ async function run(mode) {
       check('notes written in v3.0 are kept', (await count('text=Written in v3.0')) === 1);
       const after = await source();
       check('action item edits are kept', after.actions.some((a) => a.text === 'Changed in v3.0'));
-      check('every client gains an address history', after.version === 5 && after.clients.every((c) => c.addresses && c.addresses.length >= 3));
+      check('every client gains an address history', after.version === 6 && after.clients.every((c) => c.addresses && c.addresses.length >= 3));
       check('the same history as a fresh start', JSON.stringify(after.clients.find((c) => c.id === 'c9').addresses) === JSON.stringify(db.clients.find((c) => c.id === 'c9').addresses));
       await go('#client/c2/address-history'); await freshAddressPrefs(); await reload();
       check('and it shows', (await count('.addr-card')) === after.clients.find((c) => c.id === 'c2').addresses.length);
+    });
+
+    await part('Upgrade from v3.1 saved data', async () => {
+      const db = await source();
+      await pg.evaluate((old) => {
+        old.version = 5;
+        delete old.contacts; delete old.contactSeq;
+        old.colabs = old.colabs.filter((c) => c.id !== 'ASC');
+        old.clients = old.clients.filter((c) => c.id !== 'c65');
+        old.clients.forEach((c) => { c.colabs = c.colabs.filter((x) => x !== 'ASC'); });
+        old.actions.find((a) => a.clientId === 'c4').text = 'Changed in v3.1';
+        localStorage.setItem('colab.db', JSON.stringify(old));
+      }, db);
+      await go('#home'); await reload();
+      const after = await source();
+      check('gains ASC: the CoLab, Jayden Ruiz and past contacts', after.version === 6 && after.colabs.some((c) => c.id === 'ASC') && after.clients.some((c) => c.id === 'c65') && after.contacts.length === db.contacts.length);
+      check('earlier edits are kept', after.actions.some((a) => a.text === 'Changed in v3.1'));
+      check('other records are untouched', JSON.stringify(after.clients.find((c) => c.id === 'c9').addresses) === JSON.stringify(db.clients.find((c) => c.id === 'c9').addresses));
     });
 
     await part('Reset sample data', async () => {
@@ -798,15 +816,245 @@ async function run(mode) {
     });
   }
 
+  // ---------------------------------------------------------------- ASC (v4)
+  const ASC = await import('../src/data/asc.js');
+  await part('ASC: rules', async () => {
+    check('7 business days skip the weekend', ASC.addBusinessDays('2026-11-13', 7) === '2026-11-24' && ASC.addBusinessDays('2026-11-04', 7) === '2026-11-13');
+    check('90 days lands on a weekday', ASC.addDaysOnWeekday('2026-11-04', 90) === '2027-02-02' && ASC.addDaysOnWeekday('2026-11-04', 3) === '2026-11-09');
+    check('units: 15 minutes each, at least 1', ASC.unitsFor(0) === 0 && ASC.unitsFor(7) === 1 && ASC.unitsFor(19) === 1 && ASC.unitsFor(23) === 2 && ASC.unitsFor(60) === 4);
+    check('service codes', ASC.serviceCode('Benefit Assistance · T1016BA') === 'T1016BA' && ASC.serviceCode('Casefinding [code TBD]') === '[TBD]');
+  });
+
+  const contactId = () => (pg.url().match(/#asc\/contact\/([^/]+)/) || [])[1];
+  const contactOf = async (id) => (await source()).contacts.find((k) => k.id === id);
+  const opt = (group, name) => pg.locator(`[aria-labelledby="${group}"]`).getByRole('button', { name, exact: true });
+  const fillIntake = async () => {
+    await btn('Asked: no danger now', true).click(); await btn('Parent or guardian', true).click(); await btn('Child, 0–17', true).click();
+    await pg.fill('#asc-story', 'Calling about her son, 6. Sent home from school twice this week.');
+    await btn('Find services', true).click();
+    for (const [q, a] of [['mh', 'Yes'], ['ph', 'Yes, OK'], ['house', 'Yes, stable'], ['food', 'Sometimes'], ['su', 'No']]) await opt('q-' + q, a).click();
+    await btn('Medical Assistance or HealthChoices', true).click(); await btn('School', true).click();
+  };
+
+  await part('ASC: the CoLab', async () => {
+    await go('#home');
+    await pg.selectOption('#choose-colab', 'ASC');
+    check('ASC is a CoLab under All CoLabs', (await pg.locator('#choose-colab option').allInnerTexts()).includes('ASC'));
+    check('Home shows the ASC card', (await count('#asc-home-h')) === 1);
+    check('the sidebar links to ASC Contacts', (await count('.sidebar a[href="#asc"]')) === 1);
+    await pg.locator('.sidebar a[href="#asc"]').click();
+    await pg.waitForSelector('#asc-list-h');
+    check('ASC Contacts page and title', (await text('h1')).includes('ASC Contacts') && (await pg.title()) === 'ASC Contacts · CoLab');
+    const db = await source();
+    await btn(/All contacts/).click();
+    check('lists every contact', (await count('.table[aria-label="ASC contacts"] .tr.is-row')) === Math.min(10, db.contacts.length));
+    await pg.selectOption('#choose-colab', '');
+  });
+
+  let kid = '';
+  await part('ASC: intake', async () => {
+    await go('#asc');
+    await btn('New Phone Contact', true).click();
+    await pg.waitForSelector('.asc-safety');
+    kid = contactId();
+    check('a new contact opens on the Intake step', !!kid && pg.url().endsWith('/intake'));
+    const k = await contactOf(kid);
+    check('it has an event ID and call log ID', /^EV-26-\d{6}$/.test(k.ref) && (await text('.client-head')).includes(k.ref) && (await text('.client-head')).includes(k.logId));
+    check('four steps', (await count('.asc-step')) === 4);
+    check('runs a call timer', /On call/.test(await text('.asc-live')));
+    await btn('Returning Caller', true).click();
+    await pg.fill('#asc-ref', '999999'); await btn('Find', true).click();
+    await pg.waitForSelector('#asc-ref-err');
+    check('an unknown reference number says so', (await text('#asc-ref-err')).includes('No contact has that reference number'));
+    await pg.fill('#asc-ref', '142'); await btn('Find', true).click();
+    await pg.waitForSelector('.asc-found');
+    await pg.getByRole('button', { name: /Add to This Contact/ }).click();
+    await pg.waitForSelector('.modal .asc-history');
+    check('previous interactions: open items first', (await text('.modal .asc-open')).includes('Mental health services for a child'));
+    check('and both earlier contacts', (await count('.modal .asc-event')) === 2 && (await text('.modal')).includes('Dana Whitfield'));
+    await btn('Done', true).click();
+    await fillIntake();
+    check('a concern offers to add the need', (await count('text=Add Need: Mental health services for a child')) === 1);
+    await pg.getByRole('button', { name: 'Add Need: Mental health services for a child' }).click();
+    await pg.getByRole('button', { name: 'Add Need: Food or other benefits' }).click();
+    check('needs added from screening', (await count('.asc-needs li')) === 2);
+    await pg.waitForTimeout(900);
+    check('the intake is complete', (await text('.asc-gaps')).includes('Intake complete') && (await count('.asc-step-num.is-done')) === 1);
+    await reload(); await pg.waitForSelector('.asc-safety');
+    check('answers are saved', (await pg.inputValue('#asc-story')).startsWith('Calling about her son') && (await btn('School', true).getAttribute('aria-pressed')) === 'true');
+    const saved = await contactOf(kid);
+    check('in the data', saved.screening.food === 'Sometimes' && saved.needs.length === 2 && saved.priorRefs.length === 2);
+  });
+
+  await part('ASC: identify and enroll', async () => {
+    await pg.getByRole('button', { name: 'Next: Identify' }).click();
+    await pg.waitForSelector('#h-lookup');
+    await btn('Search MCI', true).click();
+    check('search needs a name or date of birth', (await count('text=Enter a name or date of birth to search.')) === 1);
+    await pg.fill('#i-first', 'Jayden'); await pg.fill('#i-last', 'Ruiz'); await pg.fill('#i-dob', '2020-03-14');
+    await btn('Search MCI', true).click();
+    await btn('Select Jayden Ruiz', true).click();
+    await pg.waitForSelector('#h-confirm');
+    check('confirm shows the guardian and coverage on file', (await text('.asc-card')).includes('Maria Ruiz') && (await text('.asc-card')).includes('HealthChoices (CCBH)'));
+    await btn('Enroll and Continue', true).click();
+    await pg.waitForSelector('#h-ix');
+    const db = await source();
+    const k = db.contacts.find((x) => x.id === kid);
+    const c = db.clients.find((x) => x.id === 'c65');
+    check('the contact is on Jayden’s record', k.clientId === 'c65' && k.identity === 'matched');
+    check('Jayden is enrolled in ASC', c.colabs.includes('ASC') && c.enrollments.some((e) => e.name.includes('ASC')));
+    check('earlier contacts tied by reference number are his too', db.contacts.filter((x) => x.group === k.group).every((x) => x.clientId === 'c65'));
+    check('their notes moved to his record', db.notes.filter((n) => n.clientId === 'c65' && n.tag === 'ASC').length >= 2);
+    check('the header shows him', (await text('.client-head h1')) === 'Jayden Ruiz' && (await text('.topbar')).includes('Jayden Ruiz'));
+    check('the client panel takes over', (await text('aside.panel')).includes('tagged ASC'));
+  });
+
+  await part('ASC: interactions, reminders and follow-ups', async () => {
+    await pg.getByRole('button', { name: 'IBHS evaluation info' }).click();
+    await pg.waitForTimeout(150);
+    check('a new interaction focuses its minutes', await pg.evaluate(() => /-min$/.test(document.activeElement.id)));
+    await pg.keyboard.type('19');
+    await pg.getByRole('button', { name: '211' }).click(); await pg.waitForTimeout(150); await pg.keyboard.type('8');
+    check('one interaction per resource', (await count('.asc-ix')) === 2);
+    check('units are calculated', (await pg.locator('.asc-units').allInnerTexts()).join() === '1,1');
+    check('place defaults to Telephone', (await pg.inputValue('.asc-ix >> nth=0 >> select[id$="-place"]')) === 'Telephone [code TBD]');
+    const first = pg.locator('.asc-ix').first();
+    await first.getByRole('button', { name: 'Add Reminder' }).click();
+    await first.locator('input.is-block').fill('Call Maria to confirm the IBHS appointment');
+    await btn('Save Reminder', true).click();
+    check('a reminder needs a due date', (await first.locator('[role=alert]').count()) === 1);
+    await first.locator('input[type=date]').fill('2026-12-01');
+    await btn('Save Reminder', true).click();
+    await pg.waitForTimeout(600);
+    check('the reminder shows on the interaction', (await first.locator('.asc-rem-list').innerText()).includes('Call Maria to confirm'));
+    check('and in Action Items', (await text('aside.panel')).includes('Call Maria to confirm'));
+    await opt('h-fok', 'Yes').click(); await opt('h-fhow', 'Text').click();
+    await pg.waitForTimeout(600);
+    const db = await source();
+    const k = db.contacts.find((x) => x.id === kid);
+    const autos = k.links.filter((l) => l.auto).map((l) => db.actions.find((a) => a.id === l.actionId));
+    const start = ASC.dayOf(k.startedAt);
+    check('two automatic follow-ups', autos.length === 2 && autos.every((a) => a && a.tag === 'ASC' && a.clientId === 'c65'));
+    check('7 business days and 90 days, on weekdays', autos[0].due === ASC.addBusinessDays(start, 7) && autos[1].due === ASC.addDaysOnWeekday(start, 90) && autos.every((a) => !['Sat', 'Sun'].includes(ASC.weekday(a.due))));
+    check('the follow-up uses the way they asked for', autos[0].text.startsWith('7-day follow-up text'));
+    check('the reminder is linked to its interaction', k.links.some((l) => l.ixId === k.interactions[0].id));
+    await opt('h-fok', 'No').click(); await pg.waitForTimeout(500);
+    const db2 = await source();
+    check('saying No removes them', !db2.actions.some((a) => a.id === autos[0].id));
+    await opt('h-fok', 'Yes').click(); await pg.waitForTimeout(500);
+  });
+
+  await part('ASC: wrap up and close', async () => {
+    await pg.getByRole('button', { name: 'Next: Wrap Up' }).click();
+    await pg.waitForSelector('#h-wneeds');
+    check('the state table has a row per interaction', (await count('.table[aria-label="What goes to the state"] .tr.is-row')) === 2);
+    await btn('Close Contact', true).click();
+    check('closing needs an outcome for each need', (await text('.asc-foot')).includes('Choose an outcome') && (await pg.evaluate(() => document.activeElement.tagName)) === 'SELECT');
+    const sels = pg.locator('.asc-outcomes select');
+    await sels.nth(0).selectOption('Keep open with a follow-up'); await sels.nth(1).selectOption('Connected');
+    await btn('Close Contact', true).click();
+    await pg.waitForSelector('.asc-closed');
+    const k = await contactOf(kid);
+    check('the contact is closed', k.status === 'closed' && k.closedKind === 'client' && !!k.endedAt);
+    check('the summary says it is ready to report', (await text('.asc-summary')).includes('Ready for state reporting'));
+    await go('#client/c65/asc');
+    await pg.waitForSelector('.asc-history');
+    check('Jayden’s ASC tab shows his contacts', (await count('.asc-event')) === 3 && (await text('.info-card')).includes('Active'));
+    check('and his latest screening', (await text('.asc-screen-grid')).includes('Sometimes'));
+    await go('#client/c2/overview');
+    check('the ASC tab only shows for enrolled clients', (await count('.tabs a[href$="/asc"]')) === ((await source()).clients.find((c) => c.id === 'c2').colabs.includes('ASC') ? 1 : 0));
+  });
+
+  await part('ASC: anonymous, in person', async () => {
+    await go('#asc');
+    await btn('New In-Person Contact', true).click();
+    await pg.waitForSelector('#asc-site');
+    const id = contactId();
+    check('in person shows the site and Visit ID', (await text('.client-head')).includes('Visit ID') && /In person/.test(await text('.asc-live')));
+    await opt('h-privacy', 'Shared space, like a lobby').click();
+    check('a shared space warns before sensitive questions', (await count('.notice.is-warn')) === 1);
+    await fillIntake();
+    await pg.getByRole('button', { name: 'Add Need: Mental health services for a child' }).click();
+    await pg.getByRole('link', { name: /Identify/ }).click();
+    await btn('Continue Anonymously', true).click();
+    await pg.fill('#a-name', 'Rae'); await pg.fill('#a-zip', '15212');
+    await pg.getByRole('link', { name: /Interactions/ }).click();
+    await pg.getByRole('button', { name: 'MATP' }).click(); await pg.waitForTimeout(150); await pg.keyboard.type('12');
+    check('in person, place defaults to Office', (await pg.inputValue('select[id$="-place"]')) === 'Office [code TBD]' && (await pg.inputValue('select[id$="-how"]')) === 'Number given');
+    check('on-site steps', (await count('#h-onsite')) === 1);
+    await opt('h-idc', 'Photo ID').click();
+    await btn('Sign on the Tablet', true).click(); await btn('Scan', true).click();
+    await btn('Add New Case Note', true).click();
+    await pg.fill('#k-note-draft', 'Met at the front desk. Will come back Tuesday.');
+    await pg.locator('aside.panel').getByRole('button', { name: 'Save' }).click();
+    await pg.waitForTimeout(500);
+    const k = await contactOf(id);
+    check('anonymous notes stay on the contact', k.notes.length === 1 && k.anon.name === 'Rae' && !k.clientId);
+    check('on-site steps are saved', k.onsite.idCheck === 'Photo ID' && !!k.onsite.consentSigned && k.onsite.docs.length === 1);
+    await pg.getByRole('link', { name: /Wrap Up/ }).click();
+    await pg.locator('.asc-outcomes select').first().selectOption('Information given');
+    await btn('Close Contact', true).click();
+    await pg.waitForSelector('.asc-closed');
+    check('closes as anonymous', (await contactOf(id)).closedKind === 'anon' && (await text('.asc-summary')).includes('Anonymous'));
+  });
+
+  await part('ASC: urgent routing', async () => {
+    await go('#asc');
+    await btn('New Phone Contact', true).click();
+    await pg.waitForSelector('.asc-safety');
+    const id = contactId();
+    await btn('Yes: start urgent routing', true).click();
+    await pg.waitForSelector('.modal .asc-dest');
+    await btn(/988 Lifeline/).click();
+    await btn('Log Transfer and Close Contact', true).click();
+    await pg.waitForSelector('.asc-closed');
+    const k = await contactOf(id);
+    check('logs the transfer and closes', k.closedKind === 'urgent' && k.urgent.dest === '988 Lifeline' && pg.url().endsWith('/wrap-up'));
+  });
+
+  await part('ASC: register a new client', async () => {
+    await go('#asc');
+    await btn('New Phone Contact', true).click();
+    await pg.waitForSelector('.asc-safety');
+    const id = contactId();
+    await pg.getByRole('link', { name: /Identify/ }).click();
+    await pg.fill('#i-first', 'Quinlan'); await pg.fill('#i-last', 'Abernathy'); await btn('Search MCI', true).click();
+    await pg.waitForSelector('.asc-nomatch');
+    check('no match offers looser searches', (await count('.asc-nomatch .opt')) >= 1);
+    await btn('Create New Client', true).click();
+    await btn('Register and Enroll', true).click();
+    check('required fields are checked', (await text('#n-err')).includes('gender') && (await pg.evaluate(() => document.activeElement.id)) === 'n-gender');
+    await pg.selectOption('#n-gender', 'Female'); await pg.fill('#n-dob', '1991-05-02'); await pg.fill('#n-street', '12 Federal St'); await pg.fill('#n-zip', '15212');
+    await btn('Register and Enroll', true).click();
+    await pg.waitForSelector('#h-ix');
+    const db = await source();
+    const k = db.contacts.find((x) => x.id === id);
+    const c = db.clients.find((x) => x.id === k.clientId);
+    check('registered in MCI and enrolled', k.identity === 'new' && c && c.first === 'Quinlan' && c.colabs.includes('ASC') && /^R\d{10}$/.test(c.mci));
+    await go(`#client/${c.id}/overview`);
+    await pg.waitForSelector('.client-head');
+    check('their profile opens', (await text('.client-head h1')) === 'Quinlan Abernathy');
+  });
+
   await part('Accessibility', async () => {
     const bad = [];
     // Extra states to audit: the address dialog with a row open, the history with a card open, and its table.
     const states = {
       '#client/c1/overview dialog': async () => { await go('#client/c1/overview'); await btn('View Address Details').click(); await pg.locator('.modal .addr-toggle').nth(1).click(); },
       '#client/c1/address-history': async () => { await go('#client/c1/address-history'); await btn('Timeline').click(); await pg.locator('.addr-card .addr-toggle').first().click(); await pg.locator('.select-btn').click(); },
-      '#client/c1/address-history table': async () => { await go('#client/c1/address-history'); await pg.keyboard.press('Escape'); await btn('Table').click(); await pg.locator('.addr-row').first().click(); }
+      '#client/c1/address-history table': async () => { await go('#client/c1/address-history'); await pg.keyboard.press('Escape'); await btn('Table').click(); await pg.locator('.addr-row').first().click(); },
+      'ASC intake': async () => { await go('#asc'); await btn('New Phone Contact', true).click(); await pg.waitForSelector('.asc-safety'); await btn('Returning Caller', true).click(); await btn('Find', true).click(); },
+      'ASC identify': async () => { await pg.getByRole('link', { name: /Identify/ }).click(); await pg.fill('#i-last', 'Nobodyhere'); await btn('Search MCI', true).click(); await pg.waitForSelector('.asc-nomatch'); },
+      'ASC new client': async () => { await btn('Create New Client', true).click(); await btn('Register and Enroll', true).click(); },
+      'ASC anonymous': async () => { await btn('Back to Search', true).click(); await btn('Continue Anonymously', true).click(); },
+      'ASC interactions': async () => { await pg.getByRole('link', { name: /Interactions/ }).click(); await pg.getByRole('button', { name: 'MATP', exact: true }).click(); await pg.locator('.asc-ix').first().getByRole('button', { name: 'Add Reminder' }).click(); },
+      'ASC wrap up': async () => { await pg.getByRole('link', { name: /Wrap Up/ }).click(); await btn('Close Contact', true).click(); },
+      'ASC urgent dialog': async () => { await btn('Urgent Routing', true).click(); await pg.waitForSelector('.asc-dest'); },
+      'ASC history dialog': async () => { await pg.keyboard.press('Escape'); await btn('Previous Interactions', true).click(); await pg.waitForSelector('.modal'); },
+      '#client/c65/asc': async () => { await pg.keyboard.press('Escape'); await go('#client/c3/asc'); await pg.waitForSelector('.asc-history'); }
     };
-    for (const h of ['#home', '#my-action-items', '#my-case-notes', '#starred-clients', '#client/c1/overview', '#client/c1/services', '#client/c1/program-info', '#client/c1/providers', '#client/c1/case-notes', '#client/c1/service/s1', '#client/c1/provider/Mercy', ...Object.keys(states)]) {
+    for (const h of ['#home', '#my-action-items', '#my-case-notes', '#starred-clients', '#client/c1/overview', '#client/c1/services', '#client/c1/program-info', '#client/c1/providers', '#client/c1/case-notes', '#client/c1/service/s1', '#client/c1/provider/Mercy', '#asc', ...Object.keys(states)]) {
+      if (process.env.DEBUG) console.log('  a11y state', h);
       if (states[h]) await states[h](); else await go(h);
       await pg.waitForTimeout(150);
       const r = await pg.evaluate(() => {
@@ -835,8 +1083,8 @@ async function run(mode) {
       r.forEach((x) => bad.push(h + ' ' + x));
     }
     check('contrast, names and target sizes', bad.length === 0, bad.slice(0, 6));
-    await btn('Timeline').click();
     await go('#client/c1/address-history');
+    await btn('Timeline').click();
     await pg.locator('.addr-card .addr-toggle').first().focus();
     await pg.keyboard.press('Enter');
     check('keyboard opens an address card', (await pg.locator('.addr-card .addr-toggle').first().getAttribute('aria-expanded')) === 'true');
@@ -844,6 +1092,21 @@ async function run(mode) {
     check('and closes it', (await count('.addr-body')) === 0);
     await pg.locator('.addr-card .src-tag').first().focus();
     check('tag tooltips open on keyboard focus', await pg.locator('.addr-card .src-tip').first().locator('.tip-box').isVisible());
+    // ASC by keyboard alone
+    await go('#asc');
+    await btn('New Phone Contact', true).focus(); await pg.keyboard.press('Enter');
+    await pg.waitForSelector('.asc-safety');
+    await btn('Asked: no danger now', true).focus(); await pg.keyboard.press('Space');
+    check('answers toggle with the keyboard', (await btn('Asked: no danger now', true).getAttribute('aria-pressed')) === 'true');
+    await btn('Urgent Routing', true).focus(); await pg.keyboard.press('Enter');
+    await pg.waitForSelector('.modal');
+    check('the dialog takes focus', await pg.evaluate(() => !!document.activeElement.closest('.modal')));
+    for (let i = 0; i < 12; i++) await pg.keyboard.press('Tab');
+    check('and keeps it', await pg.evaluate(() => !!document.activeElement.closest('.modal')));
+    await pg.keyboard.press('Escape');
+    check('Escape closes it and focus goes back', (await count('.modal')) === 0 && (await pg.evaluate(() => document.activeElement.textContent)).includes('Urgent Routing'));
+    await btn('Returning Caller', true).click(); await btn('Cancel', true).click(); await pg.waitForTimeout(80);
+    check('closing a helper returns focus to its button', (await pg.evaluate(() => document.activeElement.id)) === 'asc-btn-return');
   });
 
   await part('Phone width', async () => {

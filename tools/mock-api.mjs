@@ -40,6 +40,14 @@ const routes = [
   ['GET', /^\/me\/action-items$/, () => api.myActions(db)],
   ['GET', /^\/providers\/([^/]+)$/, (m) => api.getProvider(db, m[1])],
   ['POST', /^\/reports$/, (m, q, body) => [201, api.createReport(db, body)]],
+  ['GET', /^\/asc\/contacts$/, (m, q) => api.listContacts(db, Object.fromEntries(q))],
+  ['POST', /^\/asc\/contacts$/, (m, q, body) => [201, api.createContact(db, body)]],
+  ['GET', /^\/asc\/contacts\/lookup$/, (m, q) => api.lookupContact(db, q.get('ref'))],
+  ['GET', /^\/asc\/contacts\/([^/]+)$/, (m) => api.getContact(db, m[1])],
+  ['PATCH', /^\/asc\/contacts\/([^/]+)$/, (m, q, body) => api.updateContact(db, m[1], body)],
+  ['POST', /^\/asc\/contacts\/([^/]+)\/link$/, (m, q, body) => api.linkContact(db, m[1], body)],
+  ['POST', /^\/asc\/contacts\/([^/]+)\/close$/, (m, q, body) => api.closeContact(db, m[1], body)],
+  ['GET', /^\/asc\/history$/, (m, q) => api.contactHistory(db, Object.fromEntries(q))],
   // Test helpers, not part of the API contract.
   ['POST', /^\/__reset$/, () => { db = buildSeed(); return [204]; }],
   ['GET', /^\/__db$/, () => db]

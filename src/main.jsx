@@ -11,20 +11,26 @@ import { Home } from './pages/hub/Home.jsx';
 import { MyActions, MyNotes } from './pages/hub/MyWork.jsx';
 import { Starred } from './pages/hub/Starred.jsx';
 import { ClientPage } from './pages/client/ClientPage.jsx';
+import { AscHome } from './pages/asc/AscHome.jsx';
+import { ContactPage } from './pages/asc/ContactPage.jsx';
 import { Modals } from './modals/index.jsx';
 import { Toast, Loading, LoadError } from './ui/controls.jsx';
 import { fullName } from './lib.js';
 
-const HUB = { home: Home, 'my-action-items': MyActions, 'my-case-notes': MyNotes, 'starred-clients': Starred };
+const HUB = { home: Home, 'my-action-items': MyActions, 'my-case-notes': MyNotes, 'starred-clients': Starred, asc: AscHome };
+const STEP_TITLES = { intake: 'Intake', identify: 'Identify', interactions: 'Interactions', 'wrap-up': 'Wrap Up' };
 const SUBPAGES = { notes: 'All Case Notes', actions: 'All Action Items', addresses: 'Address History', service: 'Service Details', provider: 'Provider Details' };
 
 function useTitle(route) {
-  const { clients } = useData();
+  const { clients, contacts } = useData();
   let title = HUB_PAGES[route.page] || 'CoLab';
   if (route.page === 'client') {
     const c = clients[route.id];
     const part = SUBPAGES[route.sub] || (CLIENT_TABS.find((t) => t[0] === route.tab) || [0, 'Client'])[1];
     title = (c ? fullName(c) : 'Client') + ' · ' + part;
+  } else if (route.page === 'contact') {
+    const k = contacts[route.id];
+    title = (k ? k.ref : 'Contact') + ' · ' + STEP_TITLES[route.step] + ' · ASC';
   }
   useEffect(() => { document.title = title + ' · CoLab'; }, [title]);
 }
@@ -40,6 +46,7 @@ function App() {
   }
   let page;
   if (route.page === 'client') page = <ClientPage route={route} />;
+  else if (route.page === 'contact') page = <ContactPage route={route} />;
   else { const P = HUB[route.page] || Home; page = <HubShell page={route.page}><P /></HubShell>; }
   return <><a className="skip-link" href="#main" onClick={skip}>Skip to main content</a>{page}<Modals /><Toast /></>;
 }

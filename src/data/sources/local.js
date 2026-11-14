@@ -2,24 +2,29 @@
 // the mock API (../backend.js), so screens can't tell it apart from a real API.
 import * as api from '../backend.js';
 import { buildSeed, enrich, SEED_VERSION } from '../seed.js';
-import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider } from '../schema.js';
+import { seedAsc } from '../asc-seed.js';
+import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange } from '../schema.js';
 
 const KEY = 'colab.db';
+
 
 function read() {
   try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
 }
 
 // Older saved data is upgraded in place so changes people made are kept:
-// version 3 (app v2.x) lacked staff, contact sources and full SSNs; version 4 (app v3.0) lacked address histories.
+// version 3 (app v2.x) lacked staff, contact sources and full SSNs; version 4 (app v3.0) lacked address histories;
+// version 5 (app v3.1) lacked ASC (the CoLab, its contacts and Jayden Ruiz).
 function upgrade(stored) {
   if (stored && stored.version === SEED_VERSION) return stored;
-  if (!stored || (stored.version !== 3 && stored.version !== 4)) return buildSeed();
+  if (!stored || stored.version < 3 || stored.version > SEED_VERSION) return buildSeed();
   const fresh = stored.version === 3 ? buildSeed() : null;
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  stored.clients.forEach((c) => enrich(c, today));
-  const extra = fresh ? { userId: fresh.userId, staff: fresh.staff, colabs: fresh.colabs, providers: fresh.providers } : {};
-  return { ...stored, ...extra, version: SEED_VERSION, reports: stored.reports || [] };
+  const extra = fresh ? { userId: fresh.userId, staff: fresh.staff, colabs: fresh.colabs.filter((c) => c.id !== 'ASC'), providers: fresh.providers } : {};
+  const db = { ...stored, ...extra, version: SEED_VERSION, reports: stored.reports || [] };
+  seedAsc(db, today);
+  db.clients.forEach((c) => enrich(c, today));
+  return db;
 }
 
 export function createLocalSource() {
@@ -72,6 +77,15 @@ export function createLocalSource() {
     updateAction: (id, patch) => run((d) => api.updateAction(d, id, patch), true).then(normalizeAction),
     deleteAction: (id) => run((d) => api.deleteAction(d, id), true).then(() => undefined),
     getProvider: (name) => run((d) => api.getProvider(d, name)).then(normalizeProvider),
-    submitReport: (body) => run((d) => api.createReport(d, body), true)
+    submitReport: (body) => run((d) => api.createReport(d, body), true),
+
+    listContacts: (q) => run((d) => api.listContacts(d, q)).then((l) => l.map(normalizeContactSummary)),
+    getContact: (id) => run((d) => api.getContact(d, id)).then(normalizeContact),
+    createContact: (body) => run((d) => api.createContact(d, body), true).then(normalizeContact),
+    updateContact: (id, patch) => run((d) => api.updateContact(d, id, patch), true).then(contactChange),
+    linkContact: (id, body) => run((d) => api.linkContact(d, id, body), true).then(contactChange),
+    closeContact: (id, body) => run((d) => api.closeContact(d, id, body), true).then(normalizeContact),
+    lookupContact: (ref) => run((d) => api.lookupContact(d, ref)).then(normalizeContactSummary),
+    getContactHistory: (q) => run((d) => api.contactHistory(d, q)).then(normalizeHistory)
   };
 }

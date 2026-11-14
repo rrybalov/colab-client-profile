@@ -1,5 +1,5 @@
 // App state.
-// - Records from the data source live in three tables (clients, notes, actions) keyed by id. Pages read the
+// - Records from the data source live in tables (clients, notes, actions, ASC contacts) keyed by id. Pages read the
 //   rows they need through the hooks in ./data.js, which also load them; each load is a "query" with a status.
 // - UI preferences (filters, sorts, open panels, drafts) persist in localStorage under colab.prefs.
 // - Each slice has its own context, so changing a filter doesn't re-render components that only read records.
@@ -9,7 +9,7 @@ const PREFS_KEY = 'colab.prefs';
 const loadPrefs = () => { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch (e) { return {}; } };
 const savePrefs = (p) => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (e) { /* storage full or blocked */ } };
 
-const EMPTY = { clients: {}, notes: {}, actions: {}, queries: {} };
+const EMPTY = { clients: {}, notes: {}, actions: {}, contacts: {}, queries: {} };
 
 function merge(table, rows, idKey = 'id') {
   if (!rows || !rows.length) return table;
@@ -45,7 +45,9 @@ function applyRecords(s, r) {
     ...s,
     clients: merge(clients, r.clients),
     notes: drop(merge(notes, r.notes), r.removeNotes),
-    actions: drop(merge(actions, r.actions), r.removeActions)
+    actions: drop(merge(actions, r.actions), r.removeActions),
+    // ASC contacts are always replaced whole: a contact's lists (needs, interactions) can shrink.
+    contacts: r.contacts && r.contacts.length ? { ...s.contacts, ...Object.fromEntries(r.contacts.map((k) => [k.id, k])) } : s.contacts
   };
 }
 
@@ -64,9 +66,12 @@ function dataReducer(s, a) {
       return { ...s, queries: { ...s.queries, [a.key]: { ...q, status, error: a.error } } };
     }
     case 'records': return applyRecords(s, a.records);
-    case 'invalidate': {
+    case 'invalidate': { // all queries, or only those whose key starts with `prefix`
       const queries = {};
-      Object.keys(s.queries).forEach((k) => { queries[k] = { ...s.queries[k], status: s.queries[k].data !== undefined ? 'stale' : s.queries[k].status }; });
+      Object.keys(s.queries).forEach((k) => {
+        const hit = !a.prefix || k.startsWith(a.prefix);
+        queries[k] = hit ? { ...s.queries[k], status: s.queries[k].data !== undefined ? 'stale' : s.queries[k].status } : s.queries[k];
+      });
       return { ...s, queries };
     }
     case 'clear': return EMPTY;

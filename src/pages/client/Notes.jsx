@@ -12,7 +12,8 @@ const focusLater = (id) => setTimeout(() => { const el = document.getElementById
 
 // Drafts are saved preferences, so a half-written note survives a reload or a trip to another page.
 // save() resolves to the saved record, or null when the draft was empty.
-export function useNoteDraft(clientId) {
+// `tag` files new notes under a CoLab (ASC screens use 'ASC'); otherwise they're personal.
+export function useNoteDraft(clientId, tag) {
   const [d, setD] = usePref('draft.note.' + clientId, null);
   const { notes } = useData();
   const { createNote, updateNote } = useMutations();
@@ -28,7 +29,7 @@ export function useNoteDraft(clientId) {
       if (!text) { setD({ ...d, error: true }); focusLater('note-draft'); return null; }
       const draft = d;
       setD(null);
-      const fields = { text, restricted: !!draft.restricted };
+      const fields = { text, restricted: !!draft.restricted, ...(tag ? { tag } : {}) };
       const original = draft.editing && notes[draft.editing];
       try {
         return original ? await updateNote(original, fields) : await createNote(clientId, fields, me);
@@ -37,7 +38,7 @@ export function useNoteDraft(clientId) {
   };
 }
 
-export function useActionDraft(clientId) {
+export function useActionDraft(clientId, tag) {
   const [d, setD] = usePref('draft.action.' + clientId, null);
   const { actions } = useData();
   const { createAction, updateAction } = useMutations();
@@ -53,7 +54,7 @@ export function useActionDraft(clientId) {
       if (!text) { setD({ ...d, error: true }); focusLater('action-draft'); return null; }
       const draft = d;
       setD(null);
-      const fields = { text, assignee: draft.assignee || me, due: draft.due || '' };
+      const fields = { text, assignee: draft.assignee || me, due: draft.due || '', ...(tag ? { tag } : {}) };
       const original = draft.editing && actions[draft.editing];
       try {
         return original ? await updateAction(original, fields) : await createAction(clientId, fields);

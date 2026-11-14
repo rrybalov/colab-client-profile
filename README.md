@@ -1,6 +1,6 @@
 # CoLab
 
-A clickable prototype of **CoLab**, Allegheny County DHS's case-conferencing tool. It covers a staff member's home page, their own action items, case notes and starred clients, client search, and the full client profile.
+A clickable prototype of **CoLab**, Allegheny County DHS's case-conferencing tool. It covers a staff member's home page, their own action items, case notes and starred clients, client search, the full client profile, and **ASC** (Administrative Service Coordination): intake, identification, service interactions and follow-up for calls and in-person visits.
 
 It is built with React and bundled with esbuild into a single `app.js`, which is committed so GitHub Pages can serve the site with no build on its side.
 
@@ -76,6 +76,7 @@ Every release is kept on its own branch, so nothing is lost:
 | `archive/v2.1` | Fixes from review: target sizes, Show more, panel layout, headers, typo |
 | `archive/v3.0` | The data layer, API support, loading and error states, tests |
 | `archive/v3.1` | Address History |
+| `archive/v4.0` | ASC: calls and visits, inside CoLab |
 
 `CHANGELOG.md` lists what changed in each.
 
@@ -99,7 +100,7 @@ git push --force-with-lease
 
 The second command rewrites `main`, so use the first unless you're sure.
 
-Data saved in a browser upgrades forward automatically (v2.x and v3.0 notes, stars and changes are kept in v3.1, and every client gains an address history). Going back to an older version resets that browser to the sample data.
+Data saved in a browser upgrades forward automatically (v2.x to v3.1 notes, stars and changes are kept in v4.0; every client gains an address history, and the data gains the ASC CoLab, its sample contacts and Jayden Ruiz). Going back to an older version resets that browser to the sample data.
 
 ## Publish with GitHub Pages
 
@@ -125,6 +126,9 @@ Every page has its own address, so you can link straight to it and the browser's
 | Service details | `#client/c1/service/s1` |
 | Provider details | `#client/c1/provider/Mercy` |
 | Address History | `#client/c1/address-history` |
+| ASC Contacts | `#asc` |
+| One ASC contact, by step | `#asc/contact/<id>/intake`, `/identify`, `/interactions`, `/wrap-up` |
+| A client's ASC tab | `#client/c65/asc` (only for clients enrolled in ASC) |
 
 `c1` is Jimothy Jones, the client drawn in Figma. `c2` to `c64` are generated clients. The old single-page links (`#services`, `#overview` and so on) still open Jimothy Jones.
 
@@ -145,6 +149,23 @@ Every page has its own address, so you can link straight to it and the browser's
 | Address | On Client Overview: the most recent address, an **N Concurrent** badge when other addresses are open at the same time, **View Address Details** and **View Full Address History** |
 | Address Details dialog | Most recent verified address, its program tags and as-of date; every concurrent address as an expandable card (one open at a time) with contact details and the matched provider; a button to the full history |
 | Address History | Timeline grouped by year, with concurrent periods outlined and dated; or a table with search, sorting and report counts. Both filter by program (OBH, DHS, Medicare, SNAP, CYF, ACHD, Shelter, Provider, Self). Hover or focus a program tag to see the systems or report dates behind it |
+
+### ASC
+
+ASC is a CoLab. Choose **ASC** under **All CoLabs** in the sidebar: Home gains an ASC card with **New Phone Contact** and **New In-Person Contact**, and the sidebar links to **ASC Contacts**. This is a convenient way in for now, not ASC's permanent home.
+
+A contact uses the client profile's frame: the top bar shows the running call or visit, with **Previous Interactions**, **Urgent Routing** and **Report Issue**; the steps are tabs; case notes and action items sit on the right.
+
+| Step | What happens |
+| --- | --- |
+| Intake | How they reached us (phone or in person, with the site and a privacy check), Safety first, who's calling, their situation and reason, five screening questions (a concern offers to add the need), needs with urgency, coverage, how they found us. **Returning Caller** finds earlier contacts by reference number. **They Gave Their Name** looks them up in MCI and pins the match, and the intake keeps going: answers on file (guardian, coverage) become one-tap confirmations. Every question is asked on every contact. |
+| Identify | Stay anonymous (with the reference number to give them), or search MCI (simple or advanced). Confirm and enroll a match, register a new client, or keep a name unverified. Earlier anonymous contacts that may be theirs can be linked. |
+| Interactions | The main work during a contact: one card per resource or hand-off with need, service interaction type, how, minutes, calculated units, place of service and notes. **Add Reminder** on any card creates an action item. Follow-up permission and the best way to reach them; once they say yes, a 7-business-day follow-up and a 90-day check-in appear in Action Items. In person: check ID, sign consent on the tablet, scan documents. |
+| Wrap Up | An outcome for every need, a reporting check with exactly what goes to the state, then **Close Contact**. |
+
+**Previous Interactions** (top bar, and on the client's ASC tab) lists what's still open, then every earlier contact: when, how long, who handled it, needs and outcomes, interactions, screening and notes. **Urgent Routing** logs a transfer to 911, 988 or resolve Crisis Services and closes the contact.
+
+Try it: start a phone contact, use **Returning Caller** with `142`, then **They Gave Their Name** with Jayden Ruiz. Jayden's mother called twice before without sharing his information; enrolling him links both calls to his record.
 
 Other details carried over from the Figma file:
 
@@ -168,13 +189,14 @@ Changes show on screen at once. If the data source refuses one, the change is un
 
 ## Sample data
 
-`src/data/seed.js` generates 64 clients from a fixed seed, so everyone sees the same people:
+`src/data/seed.js` generates 65 clients from a fixed seed, so everyone sees the same people:
 
 - Jimothy Jones (`c1`) keeps the record drawn in Figma. His 47-address history is the Address History prototype's own data, so his address is now 999 Murray Avenue, Apt 502, the prototype's most recent verified address.
 - Every other client gets an address history of 3 to 40-odd records built from their own profile (`src/data/address-gen.js`): the current address first, earlier homes going back to adulthood, shelter and transitional stays for people who were unhoused, custody records matching their jail and prison history, mailing PO boxes, out-of-state Medicare addresses, and duplicate units, with overlaps that make concurrent periods. Each record has program tags, source systems, report dates, contact details and, where it fits, a matched provider.
 - The other 63 have names, households, dates of birth, contact details, Pittsburgh-area addresses, CoLab memberships, services and service instances from seven providers, benefit enrollments, and for some, court, jail, probation and custody history.
 - Case notes and action items are written from templates that fit each client's CoLabs, programs and providers.
 - Eight staff members write notes and own action items. You are signed in as Logan Bialik, so the "My" pages show only Logan's notes and items.
+- ASC (`src/data/asc-seed.js`, built without the random stream so nothing above changes): the ASC CoLab; Jayden Ruiz (`c65`), a 6-year-old with his mother Maria as guardian and HealthChoices coverage on file; six clients already enrolled in ASC, each with a closed contact and some with open follow-ups; and Maria's two earlier anonymous calls (`EV-26-000097`, `EV-26-000142`).
 
 Dates are placed relative to the day the data is first created in a browser, so "overdue" and "recent" stay meaningful.
 
@@ -209,6 +231,11 @@ Contact-detail sources and dates, custody facilities and admission and release r
 | `src/pages/hub/` | Sidebar, Home, My Action Items, My Case Notes, Starred Clients |
 | `src/pages/client/` | Client profile: frame, header, one file per tab, details pages, full-page lists, the side panel. `address/` holds the Address Details dialog and the Address History page |
 | `src/modals/` | Search, Report Missing Client, Report an Issue |
+| `src/pages/asc/` | ASC: Contacts page and Home card, the contact frame, one file per step, the contact's notes panel, Previous Interactions and Urgent Routing, the client's ASC tab |
+| `src/state/asc.js` | ASC hooks: contacts, history, changes, and the editor that saves as people type |
+| `src/data/asc.js` | ASC rules shared by the screens and the server: screening questions, interaction types, units, follow-up dates, reporting checks |
+| `src/data/backend-asc.js`, `src/data/asc-seed.js` | ASC server logic and sample data |
+| `docs/ASC-QA.md` | The WCAG 2.2 AA audit and design review of ASC, and what was fixed |
 | `tools/mock-api.mjs` | A stand-in API serving the sample data |
 | `tests/e2e.mjs` | The browser test suite |
 | `docs/API.md` | The API contract |
@@ -230,7 +257,7 @@ Colors and type come from the ACDHS design system, defined as CSS custom propert
 
 The typeface is Roboto. To switch to Noto Sans, change the Google Fonts link in `index.html` and `--font` in `styles.css`.
 
-Deliberate departures from the source design, all for WCAG 2.1 AA:
+Deliberate departures from the source design, all for WCAG 2.2 AA:
 
 - Delete and overdue icons use a darker red (`--red-text: #B4382C`). Signal Red on white is below 3:1.
 - Address program tags use the prototype's colors, one per program. SNAP, ACHD, Provider and Self text is a shade darker than the prototype's so every tag passes 4.5:1.

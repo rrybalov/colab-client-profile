@@ -10,7 +10,7 @@ const pad = (n) => String(n).padStart(2, '0');
 const todayUS = () => { const d = new Date(); return pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + '/' + d.getFullYear(); };
 const displayName = (c) => (c.household ? c.first + ' ' + c.last : c.last + ', ' + c.first);
 let seq = 0;
-const newId = (prefix) => prefix + Date.now().toString(36) + (seq++).toString(36);
+export const newId = (prefix) => prefix + Date.now().toString(36) + (seq++).toString(36);
 
 export class NotFound extends Error { constructor(what) { super(what + ' not found'); this.status = 404; } }
 export class BadRequest extends Error { constructor(msg) { super(msg); this.status = 400; } }
@@ -45,8 +45,10 @@ export function setStar(db, id, body) {
 
 export function searchClients(db, q) {
   const first = lc(q.first), last = lc(q.last), email = lc(q.email), mci = lc(q.mci);
-  const phone = digits(q.phone), dhs = digits(q.dhs), ssn = digits(q.ssn).slice(-4);
-  if (!(first || last || email || mci || phone || dhs || ssn)) throw new BadRequest('Enter at least one field to search.');
+  const phone = digits(q.phone), dhs = digits(q.dhs), ssn = digits(q.ssn).slice(-4), zip = digits(q.zip);
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(q.dob || '').trim());
+  const dob = iso ? iso[2] + iso[3] + iso[1] : digits(q.dob);
+  if (!(first || last || email || mci || phone || dhs || ssn || dob)) throw new BadRequest('Enter at least one field to search.');
   const hits = db.clients.filter((c) => {
     if (first && !lc(c.first).includes(first) && !lc((c.members || []).join(' ')).includes(first)) return false;
     if (last && !lc(c.last).includes(last) && !(c.household && lc(c.first).includes(last))) return false;
@@ -55,6 +57,8 @@ export function searchClients(db, q) {
     if (mci && !lc(c.mci).includes(mci)) return false;
     if (dhs && !String(c.dhs).includes(dhs)) return false;
     if (ssn && c.ssn4 !== ssn) return false;
+    if (dob && digits(c.dob) !== dob) return false;
+    if (zip && !digits(c.address && c.address.zip).startsWith(zip)) return false;
     return true;
   }).sort((a, b) => displayName(a).localeCompare(displayName(b)));
   // Like a real search service: past the limit, report how many matched but send none of them.
@@ -135,3 +139,6 @@ export function createReport(db, body) {
   db.reports.push(r);
   return { id: r.id };
 }
+
+// ASC contacts live in their own module.
+export * from './backend-asc.js';

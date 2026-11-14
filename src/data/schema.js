@@ -60,6 +60,26 @@
  * @typedef {{ id: string, clientId: string, date: string, edited: boolean, restricted: boolean, tag: string, author: string, text: string }} Note
  * @typedef {{ id: string, clientId: string, tag: string, text: string, assignee: string, due: string, done: boolean, edited: boolean }} ActionItem
  * @typedef {{ name: string, address: string, phone: string, email: string, facilities: string[] }} Provider
+ *
+ * ASC (Administrative Service Coordination). A contact is one call or in-person visit. It starts anonymous;
+ * `clientId` is set once the person is identified and enrolled. Times are ISO 8601; due dates yyyy-mm-dd.
+ * @typedef {{ id: string, what: string, need: string, type: string, how: string, min: string, place: string, notes: string }} Interaction
+ * @typedef {{ id: string, name: string, urg: 'Routine'|'Urgent'|'Crisis', outcome: string, outcomeNote: string }} Need
+ * @typedef {{
+ *   id: string, ref: string, channel: 'phone'|'person', logId: string, site: string, startedAt: string, endedAt: string|null,
+ *   status: 'open'|'closed', closedKind: 'anon'|'client'|'urgent'|null, staff: string,
+ *   clientId: string|null, identity: 'matched'|'new'|'unverified'|null, candidateId: string|null, path: 'anon'|'client'|null,
+ *   group: string, priorRefs: string[], linkedPrior: 'linked'|'no'|null, unverifiedName: string,
+ *   anon: { name: string, zip: string, county: string, language: string },
+ *   intake: Object<string, string|null>, screening: Object<string, string|null>, needs: Need[], interactions: Interaction[],
+ *   followUp: { ok: 'Yes'|'No'|null, how: string, time: string }, onsite: { idCheck: string|null, consentSigned: string, docs: string[] },
+ *   notes: Note[], actions: ActionItem[], links: { actionId: string, ixId: string|null, auto: 'd7'|'d90'|null }[],
+ *   urgent: { dest: string, how: string, need: string, note: string, at: string }|null,
+ *   client: ClientSummary|null, candidate: ClientSummary|null, possibleLinks: ContactSummary[]
+ * }} Contact
+ * @typedef {{ id: string, ref: string, channel: string, site: string, startedAt: string, endedAt: string|null, status: string, closedKind: string|null,
+ *   staff: string, clientId: string|null, identity: string|null, path: string|null, clientName: string, anonName: string,
+ *   needs: { name: string, urg: string, outcome: string }[], ixCount: number, ixMin: number, ixUnits: number }} ContactSummary
  */
 
 const str = (v) => (v == null ? '' : String(v));
@@ -117,7 +137,9 @@ export function normalizeClient(c) {
       incarceration: arr(j.incarceration).map((g) => ({ label: str(g.label), items: arr(g.items).map((e) => ({ id: str(e.id), title: str(e.title), kind: str(e.kind), range: str(e.range), dur: str(e.dur), facility: str(e.facility), agency: str(e.agency), admission: str(e.admission), release: str(e.release) })) })),
       custody: { total: str(j.custody && j.custody.total), events: num(j.custody && j.custody.events), facilities: num(j.custody && j.custody.facilities) }
     } : null,
-    addresses: arr(c.addresses).map(normalizeAddressRecord).filter((a) => a.start)
+    addresses: arr(c.addresses).map(normalizeAddressRecord).filter((a) => a.start),
+    guardian: c.guardian ? { name: str(c.guardian.name), relationship: str(c.guardian.relationship), phone: str(c.guardian.phone), note: str(c.guardian.note) } : null,
+    coverage: c.coverage ? { plan: str(c.coverage.plan), status: str(c.coverage.status), asOf: str(c.coverage.asOf) } : null
   };
 }
 
@@ -148,3 +170,66 @@ export function normalizeAction(a) {
 export function normalizeProvider(p) {
   return { name: str(p && p.name), address: str(p && p.address), phone: str(p && p.phone), email: str(p && p.email), facilities: arr(p && p.facilities).map(str) };
 }
+
+// ------------------------------------------------------------------ ASC
+const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+const strOrNull = (v) => (v == null || v === '' ? null : String(v));
+const strMap = (o, keys) => { const out = {}; keys.forEach((k) => { out[k] = k in o ? (o[k] == null ? null : String(o[k])) : null; }); return out; };
+const INTAKE_KEYS = ['safety', 'caller', 'callerOther', 'callerName', 'age', 'story', 'reason', 'reasonText', 'coverage', 'coverageDetail', 'found', 'foundOther', 'privacy', 'callerConfirmed', 'coverageConfirmed'];
+const TEXT_KEYS = ['callerOther', 'callerName', 'story', 'reasonText', 'coverageDetail', 'foundOther'];
+
+/** @returns {ContactSummary} */
+export function normalizeContactSummary(k) {
+  return {
+    id: str(k.id), ref: str(k.ref), channel: k.channel === 'person' ? 'person' : 'phone', site: str(k.site), startedAt: str(k.startedAt), endedAt: strOrNull(k.endedAt),
+    status: k.status === 'closed' ? 'closed' : 'open', closedKind: strOrNull(k.closedKind), staff: str(k.staff), clientId: strOrNull(k.clientId),
+    identity: strOrNull(k.identity), path: strOrNull(k.path), clientName: str(k.clientName), anonName: str(k.anonName),
+    needs: arr(k.needs).map((n) => ({ name: str(n.name), urg: str(n.urg) || 'Routine', outcome: str(n.outcome) })),
+    ixCount: num(k.ixCount), ixMin: num(k.ixMin), ixUnits: num(k.ixUnits)
+  };
+}
+
+/** @returns {Contact} */
+export function normalizeContact(k) {
+  const intake = strMap(obj(k.intake), INTAKE_KEYS);
+  TEXT_KEYS.forEach((key) => { intake[key] = intake[key] || ''; });
+  const f = obj(k.followUp), o = obj(k.onsite), a = obj(k.anon);
+  return {
+    id: str(k.id), ref: str(k.ref), channel: k.channel === 'person' ? 'person' : 'phone', logId: str(k.logId), site: str(k.site),
+    startedAt: str(k.startedAt), endedAt: strOrNull(k.endedAt), status: k.status === 'closed' ? 'closed' : 'open', closedKind: strOrNull(k.closedKind), staff: str(k.staff),
+    clientId: strOrNull(k.clientId), identity: strOrNull(k.identity), candidateId: strOrNull(k.candidateId), path: strOrNull(k.path),
+    group: str(k.group), priorRefs: arr(k.priorRefs).map(str), linkedPrior: strOrNull(k.linkedPrior), unverifiedName: str(k.unverifiedName),
+    anon: { name: str(a.name), zip: str(a.zip), county: str(a.county) || 'Allegheny', language: str(a.language) || 'English' },
+    intake, screening: strMap(obj(k.screening), ['mh', 'ph', 'house', 'food', 'su']),
+    needs: arr(k.needs).map((n, i) => ({ id: str(n.id) || 'n' + i, name: str(n.name), urg: str(n.urg) || 'Routine', outcome: str(n.outcome), outcomeNote: str(n.outcomeNote) })),
+    interactions: arr(k.interactions).map((x, i) => ({ id: str(x.id) || 'i' + i, what: str(x.what), need: str(x.need), type: str(x.type), how: str(x.how), min: str(x.min), place: str(x.place), notes: str(x.notes) })),
+    followUp: { ok: f.ok === 'Yes' || f.ok === 'No' ? f.ok : null, how: str(f.how) || 'Phone call', time: str(f.time) },
+    onsite: { idCheck: strOrNull(o.idCheck), consentSigned: str(o.consentSigned), docs: arr(o.docs).map(str) },
+    notes: arr(k.notes).map((n) => ({ id: str(n.id), text: str(n.text), restricted: bool(n.restricted), date: str(n.date), author: str(n.author), edited: bool(n.edited) })),
+    actions: arr(k.actions).map((x) => ({ id: str(x.id), text: str(x.text), assignee: str(x.assignee), due: str(x.due), done: bool(x.done), edited: bool(x.edited) })),
+    links: arr(k.links).map((l) => ({ actionId: str(l.actionId), ixId: strOrNull(l.ixId), auto: strOrNull(l.auto) })),
+    urgent: k.urgent ? { dest: str(k.urgent.dest), how: str(k.urgent.how), need: str(k.urgent.need), note: str(k.urgent.note), at: str(k.urgent.at) } : null,
+    client: k.client ? normalizeClientSummary(k.client) : null,
+    candidate: k.candidate ? normalizeClientSummary(k.candidate) : null,
+    possibleLinks: arr(k.possibleLinks).map(normalizeContactSummary)
+  };
+}
+
+export function normalizeHistory(h) {
+  h = obj(h);
+  return {
+    openItems: arr(h.openItems).map((o) => ({ kind: str(o.kind), text: str(o.text), meta: str(o.meta) })),
+    contacts: arr(h.contacts).map((x) => ({
+      ...normalizeContactSummary(x), staffName: str(x.staffName), possible: bool(x.possible), minutes: num(x.minutes),
+      interactions: arr(x.interactions).map((i) => ({ id: str(i.id), what: str(i.what), type: str(i.type), how: str(i.how), min: str(i.min), place: str(i.place) })),
+      notes: arr(x.notes).map(str), screening: arr(x.screening).map(str)
+    }))
+  };
+}
+
+// A contact change can also add or remove the client's action items (the automatic follow-ups) and, when the
+// person is identified, register a client and move the contact's notes and action items onto their record.
+export const normalizeContactChange = (r) => ({
+  contact: normalizeContact(r.contact), client: r.client ? normalizeClient(r.client) : null,
+  notes: (r.notes || []).map(normalizeNote), actions: (r.actions || []).map(normalizeAction), removeActions: r.removeActions || []
+});

@@ -7,6 +7,7 @@ import { Segmented, Loaded } from '../../ui/controls.jsx';
 import { ActionRow, NoteRow, StarButton, CopyButton, clientRoute } from '../../ui/records.jsx';
 import { byDueAsc, displayName, fullName, isOverdue, sortKey } from '../../lib.js';
 import { ColabNotice, SearchLaunch, useColabScope } from './HubShell.jsx';
+import { AscLaunch } from '../asc/AscHome.jsx';
 
 const PER_PAGE = 8;
 
@@ -101,10 +102,12 @@ function RecentNotes() {
 
 export function Home() {
   const { user } = useSession();
+  const { colab } = useColabScope();
   return (
     <>
       <div className="page-head"><h1 className="page-title is-welcome">Welcome, {user.first} <span aria-hidden="true">👋</span></h1><SearchLaunch /></div>
       <ColabNotice />
+      {colab === 'ASC' && <AscLaunch />}
       <StarredCarousel />
       <div className="home-grid">
         <RecentActions />

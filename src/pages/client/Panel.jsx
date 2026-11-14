@@ -12,10 +12,10 @@ import { useNoteDraft, useActionDraft, NoteComposer, ActionComposer, NoteSortBut
 const SHOWN = 5;
 const FILTERS = { all: () => true, open: (a) => !a.done, overdue: isOverdue, completed: (a) => a.done };
 
-function PanelNotes({ client: c }) {
+function PanelNotes({ client: c, tag }) {
   const [sort, setSort] = useNoteSort();
   const { query, notes } = useClientNotes(c.id, sort);
-  const draft = useNoteDraft(c.id);
+  const draft = useNoteDraft(c.id, tag);
   const { deleteNote } = useMutations();
   const [noteOpen, setNoteOpen] = usePref('panel.noteOpen', {});
   const shown = notes.slice(0, SHOWN);
@@ -53,9 +53,9 @@ function PanelNotes({ client: c }) {
   );
 }
 
-function PanelActions({ client: c }) {
+function PanelActions({ client: c, tag }) {
   const { query, actions } = useClientActions(c.id);
-  const draft = useActionDraft(c.id);
+  const draft = useActionDraft(c.id, tag);
   const { toggleAction, deleteAction } = useMutations();
   const { staffName } = useSession();
   const [filter, setFilter] = usePref('panel.actionFilter', 'open');
@@ -95,7 +95,7 @@ function PanelActions({ client: c }) {
   );
 }
 
-export function Panel({ client, open, setOpen }) {
+export function Panel({ client, open, setOpen, tag }) {
   if (!open) {
     return (
       <aside className="panel-rail" aria-label="Case notes and action items">
@@ -109,10 +109,10 @@ export function Panel({ client, open, setOpen }) {
     <aside className="panel" aria-label="Case notes and action items">
       <div className="panel-head">
         <button type="button" className="rail-btn" aria-label="Collapse case notes and action items" aria-expanded="true" onClick={() => setOpen(false)}><Icon name="chevronRight" size={18} /></button>
-        <span className="private-pill">Only visible to you</span>
+        <span className="private-pill">{tag ? 'New notes and items tagged ' + tag : 'Only visible to you'}</span>
       </div>
-      <PanelNotes client={client} />
-      <PanelActions client={client} />
+      <PanelNotes client={client} tag={tag} />
+      <PanelActions client={client} tag={tag} />
     </aside>
   );
 }

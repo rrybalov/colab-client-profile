@@ -2,6 +2,22 @@
 
 Each version is kept on an `archive/` branch. See "Versions and rolling back" in the README.
 
+## v4.0: ASC, inside CoLab
+
+Version 2 of the ASC intake design, built into CoLab with its components, type and frame. Version 1, the clickable prototype, is saved on the ASC design canvas.
+
+- **ASC is a CoLab.** Choose ASC under All CoLabs: Home gets an ASC card with New Phone Contact and New In-Person Contact, and the sidebar links to **ASC Contacts** (`#asc`), a list of every contact with In progress, Mine, Closed and All filters.
+- **A contact** (`#asc/contact/<id>/<step>`) uses the client profile's frame: top bar with the running call or visit, Previous Interactions, Urgent Routing and Report Issue; the four steps as tabs that tick off when done; case notes and action items on the right. Everything saves as people type, with a saved indicator.
+- **Intake** for every call and visit: phone or in person (site, privacy check), Safety first, who's calling, situation and reason, five screening questions (mental health, physical health, housing, food, substance use; a concern offers to add the need), needs with urgency, coverage, how they found us. **Returning Caller** by reference number. **They Gave Their Name** pins the MCI match on the intake, which keeps going; answers on file become one-tap confirmations.
+- **Identify:** stay anonymous with a reference number, or search MCI (simple or advanced) and confirm and enroll, register a new client, or keep a name unverified. Earlier anonymous contacts can be linked. Enrolling moves the contact's notes and action items to the client, tagged ASC.
+- **Interactions:** one card per resource or hand-off, the main in-call task, with need, service interaction type, how, minutes, calculated units, place of service and notes. Reminders from any card become action items. Follow-up permission and the best way to reach them; a yes schedules a 7-business-day follow-up and a 90-day check-in, on weekdays. In person: ID check, consent on the tablet, document scans.
+- **Wrap Up:** an outcome for every need, a reporting check with the rows that go to the state, Close Contact.
+- **Previous Interactions:** open items first, then every earlier contact with who handled it and what was given. **Urgent Routing** logs a transfer and closes the contact.
+- **ASC tab** on enrolled clients' profiles: enrollment, open needs, latest screening and follow-up answers, contact history.
+- **Data:** contacts in the data layer, the API contract (`/asc/…` endpoints) and the mock API; the server schedules follow-ups and moves records on enrollment. Search gains date of birth and ZIP. Jayden Ruiz joins the sample data; six clients are enrolled in ASC with past contacts. Saved data from v3.1 and earlier upgrades in place.
+- **Accessibility:** WCAG 2.2 AA audit of every ASC screen and state, all issues fixed (see `docs/ASC-QA.md`). Also fixes two things across CoLab: dialogs pull focus back in if it escapes, and the rows-per-page menu's edge now meets 3:1.
+- **Tests:** 573 browser checks across both data sources, up from 440, including the whole ASC flow, follow-up dates, keyboard use and ASC screens in the contrast, name and target-size audit.
+
 ## v3.1: Address History
 
 From the Address History prototype (timelinedisplay.replit.app), built in our design system.
