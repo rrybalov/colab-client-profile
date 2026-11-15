@@ -1,5 +1,5 @@
 // Step 1, Intake. Asked on every contact, by phone or in person, whether or not the person is known.
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Icon } from '../../ui/icons.jsx';
 import { Segmented, Field } from '../../ui/controls.jsx';
 import { useClient, useSearch } from '../../state/data.js';
@@ -143,7 +143,9 @@ function QuickIdentify({ k, edit, close }) {
 export function MatchCard({ k, edit }) {
   const { client: c } = useClient(k.candidateId || k.clientId);
   const s = k.candidate || k.client;
-  const head = useMountFocus(!!s);
+  // Focus moves here only when a match is chosen, not when the page opens with one already chosen.
+  const shownAtOpen = useRef(!!s).current;
+  const head = useMountFocus(!!s && !shownAtOpen);
   if (!s) return null;
   const inAsc = s.colabs.indexOf('ASC') >= 0;
   return (
