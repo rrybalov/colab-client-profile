@@ -105,11 +105,32 @@ function syncFollowUps(db, k) {
 const SECTIONS = ['intake', 'screening', 'followUp', 'onsite', 'anon'];
 const LISTS = ['needs', 'interactions', 'notes', 'actions'];
 
+// What can still change once a contact is closed: case notes and action items (and their links).
+const AFTER_CLOSE = ['notes', 'actions', 'addLinks', 'removeLinks'];
+const text = (v, max) => String(v == null ? '' : v).slice(0, max);
+const cleanSection = (v) => {
+  const out = {};
+  Object.keys(v).slice(0, 60).forEach((key) => { const x = v[key]; out[key] = Array.isArray(x) ? x.slice(0, 40).map((y) => text(y, 200)) : typeof x === 'boolean' || x === null ? x : typeof x === 'number' ? x : text(x, 4000); });
+  return out;
+};
+const cleanNeed = (n) => ({ id: text(n.id, 40), name: text(n.name, 120), urg: text(n.urg, 40), outcome: text(n.outcome, 120), outcomeNote: text(n.outcomeNote, 2000) });
+// Minutes stay as typed, but no single interaction is recorded as longer than 10 hours.
+const cleanMin = (v) => { const t = text(v, 6).trim(); const m = Number(t); return t && m > 600 ? '600' : t; };
+const cleanIx = (x) => ({ id: text(x.id, 40), what: text(x.what, 300), need: text(x.need, 40), type: text(x.type, 120), how: text(x.how, 60), min: cleanMin(x.min), place: text(x.place, 120), notes: text(x.notes, 4000) });
+
 export function updateContact(db, id, patch = {}) {
   ensure(db);
   const k = findContact(db, id);
-  SECTIONS.forEach((s) => { if (patch[s] && typeof patch[s] === 'object') k[s] = { ...k[s], ...patch[s] }; });
-  LISTS.forEach((s) => { if (Array.isArray(patch[s])) k[s] = patch[s]; });
+  if (k.status === 'closed') {
+    const blocked = Object.keys(patch).filter((key) => AFTER_CLOSE.indexOf(key) < 0);
+    if (blocked.length) throw new BadRequest('This contact is closed. Only case notes and action items can be added.');
+  }
+  SECTIONS.forEach((s) => { if (patch[s] && typeof patch[s] === 'object' && !Array.isArray(patch[s])) k[s] = { ...k[s], ...cleanSection(patch[s]) }; });
+  LISTS.forEach((s) => {
+    if (!Array.isArray(patch[s])) return;
+    const list = patch[s].filter((x) => x && typeof x === 'object').slice(0, 100);
+    k[s] = s === 'needs' ? list.map(cleanNeed) : s === 'interactions' ? list.map(cleanIx) : list;
+  });
   // Links are added and removed one at a time, so two screens saving at once can't drop each other's.
   if (Array.isArray(patch.addLinks)) patch.addLinks.forEach((l) => { if (l && l.actionId && !k.links.some((x) => x.actionId === l.actionId)) k.links.push({ actionId: String(l.actionId), ixId: l.ixId ? String(l.ixId) : null, auto: null }); });
   if (Array.isArray(patch.removeLinks)) k.links = k.links.filter((l) => patch.removeLinks.indexOf(l.actionId) < 0 || l.auto);

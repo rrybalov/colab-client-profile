@@ -111,6 +111,14 @@ export function totals(interactions) {
 export const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 export const totalsText = (t) => plural(t.count, 'interaction', 'interactions') + ' · ' + t.min + ' min · ' + plural(t.units, 'unit', 'units');
 
+// Documented time that runs past the contact itself (with five minutes' grace for rounding). A warning, not a block:
+// a coordinator can document work done after the call ended, but a typo like 300 for 30 should be caught.
+export function overtime(contact, now) {
+  const length = minutesBetween(contact.startedAt, contact.endedAt || now || new Date().toISOString());
+  const documented = totals(contact.interactions).min;
+  return documented > length + 5 ? { documented, length } : null;
+}
+
 // What still blocks state reporting for an identified contact; empty when it is ready.
 export function reportingIssues(contact) {
   const out = [];

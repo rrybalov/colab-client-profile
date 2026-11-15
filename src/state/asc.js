@@ -39,6 +39,17 @@ export function mergePatch(base, patch) {
   return out;
 }
 
+// Two unsent patches, older first, as one. Link ops add up; sections merge; anything else, the newer wins.
+export function combinePatches(older, newer) {
+  const out = { ...older };
+  Object.keys(newer).forEach((key) => {
+    const a = older[key]; const b = newer[key];
+    if ((key === 'addLinks' || key === 'removeLinks') && Array.isArray(a)) out[key] = a.concat(b);
+    else out[key] = b && typeof b === 'object' && !Array.isArray(b) && a && typeof a === 'object' && !Array.isArray(a) ? { ...a, ...b } : b;
+  });
+  return out;
+}
+
 export function useAscMutations() {
   const { source, dispatch, toast } = useApi();
   const refreshLists = useCallback(() => { dispatch({ type: 'invalidate', prefix: 'contacts:' }); dispatch({ type: 'invalidate', prefix: 'history:' }); }, [dispatch]);
@@ -51,9 +62,14 @@ export function useAscMutations() {
 
   const createContact = useCallback((body) => source.createContact(body).then((k) => { dispatch({ type: 'records', records: { contacts: [k] } }); refreshLists(); return k; }, fail), [source, dispatch, refreshLists, fail]);
   // Shows the change at once; the server's answer (which can add follow-ups) replaces it. A failure rolls back.
-  const updateContact = useCallback((k, patch) => {
+  // `kept`: the caller keeps the change on screen to send again, so a dropped connection isn't announced as lost.
+  const updateContact = useCallback((k, patch, opts = {}) => {
     dispatch({ type: 'records', records: { contacts: [mergePatch(k, patch)] } });
-    return source.updateContact(k.id, patch).then(apply, (e) => { dispatch({ type: 'records', records: { contacts: [k] } }); return fail(e); });
+    return source.updateContact(k.id, patch).then(apply, (e) => {
+      dispatch({ type: 'records', records: { contacts: [k] } });
+      if (opts.kept && !(e && e.status >= 400 && e.status < 500)) throw e;
+      return fail(e);
+    });
   }, [source, dispatch, apply, fail]);
   const linkContact = useCallback((k, body) => source.linkContact(k.id, body).then(apply, fail), [source, apply, fail]);
   const closeContact = useCallback((k, body) => source.closeContact(k.id, body).then((c) => { dispatch({ type: 'records', records: { contacts: [c] } }); refreshLists(); return c; }, fail), [source, dispatch, refreshLists, fail]);
@@ -80,7 +96,15 @@ export function useContactEditor(contact) {
     pendingRef.current = {};
     setPending({});
     setStatus('saving');
-    return updateContact(k, patch).then(() => setStatus('saved'), () => setStatus('error'));
+    return updateContact(k, patch, { kept: true }).then(() => setStatus('saved'), (e) => {
+      // A refused change (400, 404) is dropped. A lost connection or a server error keeps what was typed on
+      // screen, under anything typed since, so nothing is lost; the next edit or Try Again sends it.
+      if (e && e.status >= 400 && e.status < 500) { setStatus('refused'); return; }
+      const merged = combinePatches(patch, pendingRef.current);
+      pendingRef.current = merged;
+      setPending(merged);
+      setStatus('error');
+    });
   }, [updateContact]);
 
   const edit = useCallback((patch, opts = {}) => {

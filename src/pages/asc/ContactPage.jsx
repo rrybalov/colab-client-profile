@@ -49,17 +49,19 @@ function LiveChip({ k }) {
 }
 
 // Shown all the time; only a failure is announced, so screen readers aren't told "Saving" on every keystroke.
-function SaveState({ status }) {
-  const text = { saved: 'All changes saved', saving: 'Saving…', editing: 'Saving…', error: 'Not saved. Check your connection.' }[status];
+function SaveState({ status, retry }) {
+  const bad = status === 'error' || status === 'refused';
+  const text = { saved: 'All changes saved', saving: 'Saving…', editing: 'Saving…', error: 'Not saved yet. Your changes are still here.', refused: 'That change wasn’t saved.' }[status];
   return (
     <>
-      <span className={'asc-save' + (status === 'error' ? ' is-error' : '')} aria-hidden={status !== 'error'}><Icon name={status === 'error' ? 'alert' : 'check'} size={14} />{text}</span>
-      <span className="sr-only" role="alert">{status === 'error' ? 'Your last change was not saved. Check your connection.' : ''}</span>
+      <span className={'asc-save' + (bad ? ' is-error' : '')} aria-hidden={!bad}><Icon name={bad ? 'alert' : 'check'} size={14} />{text}
+        {status === 'error' && <button type="button" className="link-btn is-small" onClick={retry}>Try Again</button>}</span>
+      <span className="sr-only" role="alert">{status === 'error' ? 'Your last change was not saved. It is still on screen; choose Try Again.' : ''}</span>
     </>
   );
 }
 
-function ContactHead({ k, status }) {
+function ContactHead({ k, status, retry }) {
   const { staffName } = useSession();
   const c = k.client;
   const title = c ? c.first + ' ' + c.last : k.identity === 'unverified' ? k.unverifiedName || 'Unverified client' : k.path === 'anon' ? 'Anonymous contact' + (k.anon.name ? ': ' + k.anon.name : '') : 'New contact';
@@ -84,7 +86,7 @@ function ContactHead({ k, status }) {
         <div><dt>Started</dt><dd>{usDate(k.startedAt)}, {clockTime(k.startedAt)}</dd></div>
         <div><dt>Coordinator</dt><dd>{staffName(k.staff)}</dd></div>
         {c && <div><dt>MCI ID</dt><dd>{c.mci}</dd></div>}
-        <div className="asc-save-cell"><SaveState status={status} /></div>
+        <div className="asc-save-cell"><SaveState status={status} retry={retry} /></div>
       </dl>
     </section>
   );
@@ -117,7 +119,7 @@ export function ContactPage({ route }) {
           <Link className="crumb-link crumb" to="#asc"><Icon name="headset" size={15} />ASC Contacts</Link><Icon name="chevronRight" size={14} />
           <span className="crumb" aria-current="page">{k.ref}</span>
         </nav>
-        <ContactHead k={k} status={editor.status} />
+        <ContactHead k={k} status={editor.status} retry={editor.flush} />
         <section className="card">
           <div className="tabs-wrap">
             <nav className="tabs asc-tabs" aria-label="Contact steps">
@@ -129,7 +131,14 @@ export function ContactPage({ route }) {
               ))}
             </nav>
           </div>
-          <View k={k} edit={editor.edit} flush={editor.flush} openModal={openModal} next={idx < STEPS.length - 1 ? STEPS[idx + 1] : null} />
+          {k.status === 'closed' && route.step !== 'wrap-up' ? (
+            <>
+              <p className="notice asc-locked-note"><Icon name="lock" size={18} /><span><strong>This contact is closed</strong> ({usDate(k.endedAt)}), so its answers can't be changed. Case notes and action items can still be added. [Corrections process TBD]</span></p>
+              <fieldset className="asc-locked" disabled><legend className="sr-only">Closed contact, read only</legend>
+                <View k={k} edit={editor.edit} flush={editor.flush} openModal={openModal} next={null} />
+              </fieldset>
+            </>
+          ) : <View k={k} edit={editor.edit} flush={editor.flush} openModal={openModal} next={idx < STEPS.length - 1 ? STEPS[idx + 1] : null} />}
         </section>
       </>
     );

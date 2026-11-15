@@ -73,12 +73,13 @@ export function Badge({ urg }) {
 
 // When a screen swaps one block for another, focus would fall back to the page. This puts it on the new
 // block's heading instead, but only if focus was lost, so it never pulls focus away from where someone is.
-export function useMountFocus() {
+// Takes focus when the element first appears (pass `ready` when it waits on data), unless focus is already somewhere.
+export function useMountFocus(ready = true) {
   const ref = useRef(null);
   useEffect(() => {
     const a = document.activeElement;
-    if (ref.current && (!a || a === document.body || !document.contains(a))) ref.current.focus({ preventScroll: false });
-  }, []);
+    if (ready && ref.current && (!a || a === document.body || !document.contains(a))) ref.current.focus({ preventScroll: false });
+  }, [ready]);
   return ref;
 }
 // Removing something offers Undo in the CoLab toast, so a slip during a call costs nothing.

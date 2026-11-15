@@ -5,7 +5,7 @@ import { Table } from '../../ui/controls.jsx';
 import { useApi } from '../../state/store.jsx';
 import { useAscMutations } from '../../state/asc.js';
 import { Link, navigate } from '../../router.jsx';
-import { OUTCOMES, reportingIssues, totals, totalsText, unitsFor, serviceCode, screeningLine, minutesBetween, clockTime, usDate, plural, followUpPlan, weekday } from '../../data/asc.js';
+import { OUTCOMES, reportingIssues, overtime, totals, totalsText, unitsFor, serviceCode, screeningLine, minutesBetween, clockTime, usDate, plural, followUpPlan, weekday } from '../../data/asc.js';
 import { Badge, Section, channelLabel, useMountFocus } from './parts.jsx';
 
 const STATE_SPEC = { grid: 'minmax(120px,1.2fr) minmax(90px,1fr) 100px 90px 70px minmax(120px,1fr)', min: 640 };
@@ -131,6 +131,7 @@ export function WrapUpStep({ k, edit, flush }) {
         </Section>
       )}
 
+      {overtime(k) && <p className="notice is-warn"><Icon name="alert" size={18} /><span><strong>{overtime(k).documented} minutes documented in a {overtime(k).length}-minute contact.</strong> If that's not right, fix the minutes on <Link className="link-btn" to={{ page: 'contact', id: k.id, step: 'interactions' }} focus={false}>Interactions</Link> before closing; they're sent to the state.</span></p>}
       <div className="asc-foot">
         {tried && (unset.length || !k.needs.length) ? <p className="asc-gaps is-error" role="alert"><Icon name="alert" size={16} />{k.needs.length ? 'Choose an outcome for ' + plural(unset.length, 'need', 'needs') + ' before closing.' : 'Add a need before closing.'}</p> : <span />}
         <button type="button" className="btn-primary" onClick={close} disabled={busy}>Close Contact</button>

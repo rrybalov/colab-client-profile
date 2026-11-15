@@ -1017,3 +1017,16 @@ span.src-tag { cursor: default; }
 .asc-dest-card strong { display: inline-flex; align-items: center; gap: 6px; }
 .asc-dest-card strong .icon { color: var(--red-text); }
 .btn-outline.is-small.is-done { text-align: left; }
+
+/* ---------- QA pass 2 (v4.0.1) ---------- */
+/* Screen-reader-only text is absolutely positioned. Inside a scrolling box without a positioned ancestor it is placed
+   against the page, makes the page taller, and moving focus to it scrolls the whole app. Each scroll box contains its own. */
+.main, .panel, .tabs-wrap, .scroll-list, .feed.is-scroll { position: relative; }
+/* A closed contact's answers are shown but locked. */
+.asc-locked { border: 0; padding: 0; margin: 0; min-width: 0; }
+.asc-locked-note { margin-bottom: 20px; }
+.asc-locked:disabled .input, .asc-locked:disabled select, .asc-locked:disabled textarea { background: var(--smoke); color: var(--black); }
+.asc-save .link-btn { margin-left: 6px; }
+.td small.asc-cell-icon { display: flex; gap: 5px; margin-top: 2px; }
+/* Every client tab, ASC included, fits a laptop screen with the panel open. */
+@media (max-width: 1280px) { .tabs { gap: 2px; } .tab { padding-inline: 8px; } }

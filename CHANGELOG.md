@@ -2,6 +2,18 @@
 
 Each version is kept on an `archive/` branch. See "Versions and rolling back" in the README.
 
+## v4.0.1: ASC QA fixes
+
+A full QA pass on v4.0: a walk-through of the live site in Chrome at laptop size, failure and edge cases in the test browser, and a code review. Fixes:
+
+- **Nothing typed is lost when a save fails.** If the connection drops or the server errors, the text stays on screen, the header says "Not saved yet. Your changes are still here." with **Try Again**, and the next save sends it. A change the server refuses is rolled back and says so.
+- **Closed contacts are read-only.** Intake, Identify and Interactions show their answers locked, with a note; case notes and action items can still be added. The server refuses changes to a closed contact's answers too.
+- **Minutes check.** Interactions and Wrap Up warn when more minutes are documented than the contact lasted (a 300 for 30), without blocking. The server caps one interaction at 600 minutes and trims text fields.
+- **Focus:** Returning Caller and They Gave Their Name focus their first field when opened and give focus back to their button on Cancel; choosing a match moves focus to the match card; Add to This Contact no longer pulls focus out from behind the history dialog.
+- **The app no longer jumps when focus moves** (all of CoLab). Screen-reader-only text inside a scrolling area was measured against the page, so focusing some controls scrolled the whole app shell out of view. Each scrolling area now contains its own.
+- **Laptop widths:** the ASC Contacts list fits without scrolling sideways (contact type and coordinator now sit under the person), and every client profile tab, ASC included, fits beside the panel.
+- **Tests:** 597 browser checks across both data sources, up from 573, with a check for each fix.
+
 ## v4.0: ASC, inside CoLab
 
 Version 2 of the ASC intake design, built into CoLab with its components, type and frame. Version 1, the clickable prototype, is saved on the ASC design canvas.

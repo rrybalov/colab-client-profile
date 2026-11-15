@@ -77,6 +77,7 @@ Every release is kept on its own branch, so nothing is lost:
 | `archive/v3.0` | The data layer, API support, loading and error states, tests |
 | `archive/v3.1` | Address History |
 | `archive/v4.0` | ASC: calls and visits, inside CoLab |
+| `archive/v4.0.1` | ASC QA fixes: saves never lose typing, closed contacts read-only, focus and laptop-width fixes |
 
 `CHANGELOG.md` lists what changed in each.
 

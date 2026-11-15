@@ -9,7 +9,7 @@ import {
   SAFETY, CALLERS, AGES, REASONS, COVERAGE, FOUND, PRIVACY, URGENCY, NEED_OPTIONS, SCREENING,
   needForScreen, isConcern, intakeGaps, defaultPlace, PLACES, usDate
 } from '../../data/asc.js';
-import { Options, Section, initials, focusLater, removeWithUndo } from './parts.jsx';
+import { Options, Section, initials, focusLater, removeWithUndo, useMountFocus } from './parts.jsx';
 import { useApi } from '../../state/store.jsx';
 import { dobText } from '../../lib.js';
 
@@ -71,15 +71,15 @@ function ReturningCaller({ k, edit, openModal, close }) {
     setState({ busy: true, error: '', found: null });
     lookupContact(ref.trim()).then((found) => setState({ busy: false, error: '', found }), () => setState({ busy: false, error: 'No contact has that reference number. Check it with the caller, or keep going: the intake works without it.', found: null }));
   };
-  const attach = () => edit({ priorRef: state.found.ref }, { now: true }).then(() => { close(); openModal('ascHistory', { contactId: k.id }); });
+  const attach = () => edit({ priorRef: state.found.ref }, { now: true }).then(() => { close(true); openModal('ascHistory', { contactId: k.id }); });
   return (
     <form className="asc-inline" onSubmit={find} noValidate aria-labelledby="h-return">
       <h3 id="h-return">Find their earlier contacts</h3>
       <p className="asc-hint">Ask for the reference number from their last contact. It starts with EV.</p>
       <div className="asc-inline-row">
-        <Field id="asc-ref" label="Reference number" value={ref} onChange={(v) => { setRef(v); if (state.error) setState({ ...state, error: '' }); }} placeholder="EV-26-000142" autoComplete="off" aria-invalid={!!state.error} aria-describedby={state.error ? 'asc-ref-err' : undefined} />
+        <Field id="asc-ref" label="Reference number" autoFocus value={ref} onChange={(v) => { setRef(v); if (state.error) setState({ ...state, error: '' }); }} placeholder="EV-26-000142" autoComplete="off" aria-invalid={!!state.error} aria-describedby={state.error ? 'asc-ref-err' : undefined} />
         <button type="submit" className="btn-primary" disabled={state.busy}>Find</button>
-        <button type="button" className="btn-text" onClick={close}>Cancel</button>
+        <button type="button" className="btn-text" onClick={() => close()}>Cancel</button>
       </div>
       {state.error && <p className="field-error" id="asc-ref-err" role="alert">{state.error}</p>}
       {state.found && (
@@ -103,19 +103,19 @@ function QuickIdentify({ k, edit, close }) {
     setError(''); setRun({ first: form.first, last: form.last, dob: form.dob });
   };
   const set = (key) => (v) => { setForm({ ...form, [key]: v }); if (error) setError(''); };
-  const pick = (c) => { edit({ candidateId: c.id, path: 'client' }, { now: true }); close(); };
+  const pick = (c) => { edit({ candidateId: c.id, path: 'client' }, { now: true }); close(true); };
   return (
     <form className="asc-inline" onSubmit={submit} noValidate aria-labelledby="h-quick">
       <h3 id="h-quick">Look them up now</h3>
       <p className="asc-hint">The rest of the intake stays here. You'll confirm details and enroll on the Identify step.</p>
       <div className="form-grid is-3">
-        <Field id="q-first" label="First name" value={form.first} onChange={set('first')} autoComplete="off" />
+        <Field id="q-first" label="First name" autoFocus value={form.first} onChange={set('first')} autoComplete="off" />
         <Field id="q-last" label="Last name" value={form.last} onChange={set('last')} autoComplete="off" />
         <Field id="q-dob" label="Date of birth" value={form.dob} onChange={set('dob')} type="date" />
       </div>
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="asc-inline-row is-end">
-        <button type="button" className="btn-text" onClick={close}>Cancel</button>
+        <button type="button" className="btn-text" onClick={() => close()}>Cancel</button>
         <button type="submit" className="btn-primary">Search MCI</button>
       </div>
       {run && (
@@ -143,6 +143,7 @@ function QuickIdentify({ k, edit, close }) {
 export function MatchCard({ k, edit }) {
   const { client: c } = useClient(k.candidateId || k.clientId);
   const s = k.candidate || k.client;
+  const head = useMountFocus(!!s);
   if (!s) return null;
   const inAsc = s.colabs.indexOf('ASC') >= 0;
   return (
@@ -150,7 +151,7 @@ export function MatchCard({ k, edit }) {
       <div className="asc-match-top">
         <span className="asc-avatar" aria-hidden="true">{initials(s)}</span>
         <div className="asc-match-name">
-          <h3 id="h-match">{s.first} {s.last}</h3>
+          <h3 id="h-match" tabIndex={-1} ref={head}>{s.first} {s.last}</h3>
           <span>{dobText(s)} · MCI {s.mci} · {s.address.city} {s.address.zip}</span>
         </div>
         {!k.clientId && <button type="button" className="btn-text" onClick={() => edit({ candidateId: null, path: null }, { now: true })}>Not the right person</button>}
@@ -229,7 +230,7 @@ function Screening({ k, edit }) {
 export function IntakeStep({ k, edit, openModal, next }) {
   const [panel, setPanelState] = useState(null);
   // Closing an inline helper puts focus back on the button that opened it.
-  const setPanel = (v) => { if (!v && panel) focusLater(panel === 'return' ? 'asc-btn-return' : 'asc-btn-quick'); setPanelState(v); };
+  const setPanel = (v, quiet) => { if (!v && panel && !quiet) focusLater(panel === 'return' ? 'asc-btn-return' : 'asc-btn-quick'); setPanelState(v); };
   const { client: c } = useClient(k.candidateId || null);
   const i = k.intake;
   const set = (key, now) => (v) => edit({ intake: { [key]: v } }, now ? { now: true } : undefined);
@@ -246,8 +247,8 @@ export function IntakeStep({ k, edit, openModal, next }) {
           </div>
         )}
       </div>
-      {panel === 'return' && <ReturningCaller k={k} edit={edit} openModal={openModal} close={() => setPanel(null)} />}
-      {panel === 'quick' && <QuickIdentify k={k} edit={edit} close={() => setPanel(null)} />}
+      {panel === 'return' && <ReturningCaller k={k} edit={edit} openModal={openModal} close={(quiet) => setPanel(null, quiet)} />}
+      {panel === 'quick' && <QuickIdentify k={k} edit={edit} close={(quiet) => setPanel(null, quiet)} />}
       {k.priorRefs.length > 0 && (
         <div className="notice is-info">
           <Icon name="history" size={18} />

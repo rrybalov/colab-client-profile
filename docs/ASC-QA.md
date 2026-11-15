@@ -96,7 +96,7 @@ Checked against the ACDHS design system and CoLab (ClientView), Nielsen Norman G
 |---|---|---|
 | 1. Visibility of system status | Running timer, save state, steps tick off when done, gaps listed at the foot of Intake and Interactions, "Ready for state reporting" per interaction | Save state stays visible without being announced |
 | 2. Match with the real world | Coordinator language ("Who's calling", "You might say", "Every need ends somewhere"); units and dates explained where they appear | — |
-| 3. User control and freedom | Steps in any order; nothing is locked; Not the right person; Back to Search | Undo on removing a need, interaction, note or action item |
+| 3. User control and freedom | Steps in any order while the contact is open; Not the right person; Back to Search | Undo on removing a need, interaction, note or action item |
 | 4. Consistency and standards | CoLab components and casing throughout | Title Case on the contact type and search type controls |
 | 5. Error prevention | Required fields marked; Close Contact checks outcomes; follow-ups only after permission; urgent routing needs an explicit button | — |
 | 6. Recognition rather than recall | Match card pinned on Intake; on-file answers as confirmations; Previous Interactions one click away | The needs from Intake now show at the top of Interactions |
@@ -112,7 +112,24 @@ Checked against the ACDHS design system and CoLab (ClientView), Nielsen Norman G
 - **Follow-up with permission and preferred contact** (Inform USA standards 4.1 and 4.6).
 - **Design for interruptions:** everything saves as it's typed and survives a reload; urgent routing is one click from anywhere.
 
+## QA pass 2 (v4.0.1, 11/15/2026)
+Live walk-through of the production site in Chrome at 1066×807, then failure and edge cases in the test browser at 1440, 1066 and 390 wide, then a code review of the ASC module.
+
+| # | Found | Severity | WCAG / heuristic | Fixed |
+|---|---|---|---|---|
+| D1 | Returning Caller and They Gave Their Name opened without moving focus into them | Major | 2.4.3 Focus order | First field takes focus; Cancel returns it |
+| D2 | Add to This Contact refocused the button behind the history dialog | Major | 2.4.3 | Closes quietly before the dialog opens |
+| D3 | Choosing a match left focus on a removed button | Major | 2.4.3 | Focus moves to the match card |
+| D4 | Focusing some controls scrolled the whole app shell (all of CoLab) | Critical | 2.4.11 Focus not obscured | Scroll areas contain their screen-reader text |
+| D5 | Closed contacts stayed editable | Major | Heuristic 5, error prevention | Read-only view and a server rule |
+| D6 | Minutes could exceed the contact's length with no warning | Minor | Heuristic 5 | Soft warning on Interactions and Wrap Up |
+| D7 | A failed save threw away what was typed | Critical | 3.3.4 / heuristic 9 | Kept on screen with Try Again |
+| D8 | ASC Contacts scrolled sideways on a laptop | Minor | 1.4.10 Reflow | Six columns |
+| D9 | The ASC tab was cut off on a laptop | Minor | Heuristic 6 | Tighter tab spacing under 1280px |
+| R1 | The server accepted any shape or length for needs and interactions | Major | Code review | Fields picked, trimmed and capped |
+
 ### Still open (decisions, not defects)
+- How a closed contact gets corrected (supervisor reopen, or an addendum).
 - County holidays in the 7-day follow-up, the state's unit rounding rule, and real service and place-of-service codes.
 - Screen-reader sessions with coordinators who use NVDA or JAWS.
 - Where ASC lives long-term. The CoLab menu is a way in for now.

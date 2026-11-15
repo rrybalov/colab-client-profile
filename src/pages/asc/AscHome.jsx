@@ -11,8 +11,9 @@ import { plural } from '../../data/asc.js';
 import { SearchLaunch } from '../hub/HubShell.jsx';
 import { channelIcon, channelLabel, personLabel, StatusPill, whenText } from './parts.jsx';
 
-const SPEC = { grid: 'minmax(140px,1.1fr) 120px minmax(110px,.9fr) minmax(160px,1.4fr) minmax(170px,1.6fr) 110px minmax(120px,1fr) 120px', min: 1080 };
-const HEAD = ['Started', 'Event ID', 'Contact type', 'Person', 'Needs', 'Interactions', 'Coordinator', 'Status'].map((h) => <div className="th" role="columnheader" key={h}>{h}</div>);
+// Six columns so the list fits a laptop with the sidebar open; contact type and coordinator sit under the person.
+const SPEC = { grid: 'minmax(104px,1fr) 100px minmax(150px,1.5fr) minmax(130px,1.4fr) 112px 108px', min: 680 };
+const HEAD = ['Started', 'Event ID', 'Person', 'Needs', 'Interactions', 'Status'].map((h) => <div className="th" role="columnheader" key={h}>{h}</div>);
 
 export function useStartContact() {
   const { createContact } = useAscMutations();
@@ -36,11 +37,10 @@ function Row({ k }) {
     <div className="tr is-row is-ruled" role="row">
       <div className="td" role="cell">{whenText(k.startedAt)}</div>
       <div className="td" role="cell"><Link className="link-btn mono" to={to}>{k.ref}</Link></div>
-      <div className="td asc-cell-icon" role="cell"><Icon name={channelIcon(k.channel)} size={15} />{channelLabel(k.channel)}</div>
-      <div className="td" role="cell">{k.clientId ? <Link className="link-btn" to={{ page: 'client', id: k.clientId, sub: 'tab', tab: 'asc' }}>{k.clientName}</Link> : personLabel(k)}</div>
+      <div className="td" role="cell">{k.clientId ? <Link className="link-btn" to={{ page: 'client', id: k.clientId, sub: 'tab', tab: 'asc' }}>{k.clientName}</Link> : personLabel(k)}
+        <small className="asc-cell-icon"><Icon name={channelIcon(k.channel)} size={13} />{channelLabel(k.channel)} · {staffName(k.staff)}</small></div>
       <div className="td" role="cell">{k.needs.length ? k.needs.map((n) => n.name).join(', ') : '—'}</div>
       <div className="td" role="cell">{k.ixCount ? plural(k.ixCount, 'interaction', 'interactions') : '—'}<small>{k.ixMin ? k.ixMin + ' min · ' + plural(k.ixUnits, 'unit', 'units') : ''}</small></div>
-      <div className="td" role="cell">{staffName(k.staff)}</div>
       <div className="td" role="cell"><StatusPill status={k.status} kind={k.closedKind} /></div>
     </div>
   );

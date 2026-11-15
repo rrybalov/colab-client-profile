@@ -1036,6 +1036,69 @@ async function run(mode) {
     check('their profile opens', (await text('.client-head h1')) === 'Quinlan Abernathy');
   });
 
+  await part('ASC: QA pass 2 (v4.0.1)', async () => {
+    const B = await import('../src/data/backend-asc.js');
+    // Rules on a copy of the data, so nothing here changes what the app shows.
+    const db = await source();
+    let refused = '';
+    try { B.updateContact(db, kid, { intake: { story: 'changed after close' } }); } catch (e) { refused = e.message; }
+    check('a closed contact refuses changes to its answers', /closed/.test(refused));
+    let notesOk = true;
+    try { B.updateContact(db, kid, { notes: [] }); } catch (e) { notesOk = false; }
+    check('but still takes notes and action items', notesOk);
+    const fresh = B.createContact(db, { channel: 'phone' });
+    const r = B.updateContact(db, fresh.id, { interactions: [{ id: 'x1', what: 'w'.repeat(900), min: '6000', place: 'Telephone [code TBD]', evil: 1 }] });
+    const ix = r.contact.interactions[0];
+    check('saved interactions are trimmed and capped', ix.what.length === 300 && ix.min === '600' && !('evil' in ix));
+    const at = (iso, m) => new Date(new Date(iso).getTime() + m * 60000).toISOString();
+    const t0 = '2026-11-13T15:00:00.000Z';
+    check('minutes past the contact length are flagged', !!ASC.overtime({ startedAt: t0, endedAt: at(t0, 20), interactions: [{ min: '30' }] }) && !ASC.overtime({ startedAt: t0, endedAt: at(t0, 20), interactions: [{ min: '24' }] }));
+
+    // Closed contacts show their answers read-only.
+    await go(`#asc/contact/${kid}/intake`);
+    await pg.waitForSelector('.asc-locked');
+    check('a closed contact is read-only', (await pg.locator('fieldset.asc-locked[disabled]').count()) === 1 && (await pg.locator('#asc-story').isDisabled()) && (await text('.asc-locked-note')).includes('This contact is closed'));
+
+    // Helpers take focus when opened and give it back when cancelled.
+    await go('#asc');
+    await btn('New Phone Contact', true).click();
+    await pg.waitForSelector('.asc-safety');
+    const id = contactId();
+    await btn('Returning Caller', true).click(); await pg.waitForTimeout(100);
+    check('Returning Caller focuses the reference number', (await pg.evaluate(() => document.activeElement.id)) === 'asc-ref');
+    await pg.locator('.asc-inline').getByRole('button', { name: 'Cancel' }).click(); await pg.waitForTimeout(150);
+    check('Cancel returns focus to its button', (await pg.evaluate(() => document.activeElement.id)) === 'asc-btn-return');
+    await btn('They Gave Their Name', true).click(); await pg.waitForTimeout(100);
+    check('They Gave Their Name focuses first name', (await pg.evaluate(() => document.activeElement.id)) === 'q-first');
+    await pg.fill('#q-first', 'Jayden'); await pg.fill('#q-last', 'Ruiz'); await btn('Search MCI', true).click();
+    await btn('Select Jayden Ruiz', true).click(); await pg.waitForTimeout(250);
+    check('choosing a match moves focus to it', (await pg.evaluate(() => document.activeElement.id)) === 'h-match');
+    check('focusing never scrolls the app shell', await pg.evaluate(() => document.scrollingElement.scrollTop === 0 && document.scrollingElement.scrollHeight <= innerHeight + 1));
+
+    // A save that fails for connection reasons keeps the typing and can be retried.
+    if (api) {
+      await ctx.route(`**/api/asc/contacts/${id}`, (rt) => (rt.request().method() === 'PATCH' ? rt.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Service down"}' }) : rt.continue()));
+      await pg.fill('#asc-story', 'Typed while the connection was down.');
+      await pg.waitForSelector('.asc-save.is-error');
+      check('a failed save keeps what was typed', (await pg.inputValue('#asc-story')) === 'Typed while the connection was down.' && (await text('.asc-save')).includes('still here'));
+      await ctx.unroute(`**/api/asc/contacts/${id}`);
+      await pg.locator('.asc-save').getByRole('button', { name: 'Try Again' }).click();
+      await pg.waitForSelector('.asc-save:not(.is-error)');
+      await pg.waitForTimeout(200);
+      check('Try Again saves it', (await contactOf(id)).intake.story === 'Typed while the connection was down.');
+    }
+
+    // Laptop width: the contact list and the client tabs fit without scrolling sideways.
+    await pg.setViewportSize({ width: 1066, height: 807 });
+    await go('#asc');
+    await pg.waitForSelector('.table[aria-label="ASC contacts"]');
+    check('ASC Contacts fits a laptop screen', await pg.evaluate(() => { const w = document.querySelector('.table[aria-label="ASC contacts"]').parentElement; return w.scrollWidth <= w.clientWidth + 1; }));
+    await go('#client/c65/asc');
+    await pg.waitForSelector('.tabs');
+    check('every client tab fits, ASC included', await pg.evaluate(() => { const w = document.querySelector('.tabs-wrap'); return w.scrollWidth <= w.clientWidth + 1; }));
+    await pg.setViewportSize({ width: 1440, height: 1000 });
+  });
+
   await part('Accessibility', async () => {
     const bad = [];
     // Extra states to audit: the address dialog with a row open, the history with a card open, and its table.

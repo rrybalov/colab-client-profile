@@ -9,7 +9,7 @@ import { useMutations, useSession } from '../../state/data.js';
 import { navigate } from '../../router.jsx';
 import { isoToUS, todayISO } from '../../lib.js';
 import {
-  IX_TYPES, PLACES, HOWS, PRESETS, FOLLOW_HOWS, needForScreen, howFor, defaultPlace, unitsFor, missingFor, totals, totalsText,
+  IX_TYPES, PLACES, HOWS, PRESETS, FOLLOW_HOWS, needForScreen, howFor, defaultPlace, unitsFor, missingFor, totals, totalsText, overtime,
   followUpPlan, weekday, usDate, minutesBetween, clockTime
 } from '../../data/asc.js';
 import { Options, Section, ScreeningSummary, focusLater, removeWithUndo, Badge } from './parts.jsx';
@@ -171,12 +171,14 @@ export function InteractionsStep({ k, edit, next }) {
   const lookup = (id) => (k.clientId ? actions[id] : k.actions.find((a) => a.id === id));
   const elapsed = minutesBetween(k.startedAt, k.endedAt || new Date().toISOString());
   const have = k.interactions.map((x) => x.what);
+  const over = overtime(k);
   return (
     <div className="view asc-view">
       <div className="view-head">
         <h2 className="title"><Icon name="layers" size={24} />Interactions</h2>
         <span className="asc-total" role="status">{totalsText(t)} documented · {k.status === 'open' ? 'contact so far ' : 'contact '}{elapsed} min</span>
       </div>
+      {over && <p className="notice is-warn" role="status"><Icon name="alert" size={18} /><span><strong>{over.documented} minutes documented, but the contact has lasted {over.length}.</strong> Check the minutes on each interaction. Time spent after the call is fine to include.</span></p>}
 
       <div className="asc-needbar" aria-label="Needs from the intake" role="group">
         <span className="field-label">Needs</span>
