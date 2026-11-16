@@ -33,7 +33,7 @@ function Notes({ k, edit }) {
             <div className="meta"><span>{n.date}</span>{n.restricted && <span className="sep lock is-restricted"><Icon name="lock" size={13} label="Restricted" /></span>}<span className="spacer" />
               <button type="button" className="icon-btn is-danger" aria-label={'Delete note from ' + n.date} onClick={() => removeWithUndo(toast, edit, k, 'notes', n, 'Case note')}><Icon name="trash" size={15} /></button></div>
           </li>
-        )) : <li className="empty" style={{ fontSize: 12 }}>No case notes on this contact yet.</li>}
+        )) : <li className="empty" style={{ fontSize: 12 }}>No case notes yet.</li>}
       </ul>
       {draft ? (
         <form className="composer" onSubmit={save} noValidate>
@@ -72,7 +72,7 @@ function Actions({ k, edit }) {
               <div className="meta"><span>{staffName(a.assignee)}</span><DueDate action={a} className="sep" /></div></div>
             <div className="task-actions"><button type="button" className="icon-btn is-danger" aria-label={'Delete action item: ' + a.text} onClick={() => removeWithUndo(toast, edit, k, 'actions', a, 'Action item')}><Icon name="trash" size={15} /></button></div>
           </li>
-        )) : <li className="empty" style={{ fontSize: 12 }}>None yet. The 7-day and 90-day follow-ups are added once the person is identified and says it's OK.</li>}
+        )) : <li className="empty" style={{ fontSize: 12 }}>No action items yet.</li>}
       </ul>
       {draft ? (
         <form className="composer" onSubmit={save} noValidate>
@@ -108,7 +108,6 @@ export function ContactPanel({ k, edit, open, setOpen }) {
     <aside className="panel" aria-label="Case notes and action items">
       <div className="panel-head">
         <button type="button" className="rail-btn" aria-label="Collapse case notes and action items" aria-expanded="true" onClick={() => setOpen(false)}><Icon name="chevronRight" size={18} /></button>
-        <span className="private-pill">On this contact · {k.ref}</span>
       </div>
       <Notes k={k} edit={edit} />
       <Actions k={k} edit={edit} />

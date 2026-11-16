@@ -14,6 +14,7 @@ export const newId = (prefix) => prefix + Date.now().toString(36) + (seq++).toSt
 
 export class NotFound extends Error { constructor(what) { super(what + ' not found'); this.status = 404; } }
 export class BadRequest extends Error { constructor(msg) { super(msg); this.status = 400; } }
+export class Forbidden extends Error { constructor(msg) { super(msg); this.status = 403; } }
 
 const client = (db, id) => { const c = db.clients.find((x) => x.id === id); if (!c) throw new NotFound('Client'); return c; };
 
@@ -30,9 +31,10 @@ const summariesFor = (db, items) => {
   return db.clients.filter((c) => ids.has(c.id)).map(summary);
 };
 
-export const session = (db) => ({
-  user: db.staff.find((s) => s.id === db.userId), staff: db.staff, colabs: db.colabs, canReset: !!db.canReset
-});
+export const session = (db) => {
+  ascReady(db); // staff roles arrive with the ASC data upgrade
+  return { user: db.staff.find((s) => s.id === db.userId), staff: db.staff, colabs: db.colabs, canReset: !!db.canReset, switchUsers: DEMO_USERS };
+};
 
 export const starredClients = (db) => db.clients.filter((c) => c.starred).map(summary);
 
@@ -142,3 +144,4 @@ export function createReport(db, body) {
 
 // ASC contacts live in their own module.
 export * from './backend-asc.js';
+import { DEMO_USERS, ascReady } from './backend-asc.js';

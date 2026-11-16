@@ -2,6 +2,48 @@
 
 Each version is kept on an `archive/` branch. See "Versions and rolling back" in the README.
 
+## v4.1: Simpler ASC, and supervisor corrections
+
+**Simpler.** Every screen lost what it didn't need:
+- **Header:** Event ID, Call Log ID and MCI ID only, and one tag. Saving is silent; only a failure shows. Each step's title is in the tab only. Most gray hint text is gone. Placeholders like "[code TBD]" stay in the data but aren't shown. **History** shows only when there's history.
+- **Intake:**
+  - One **Look Up Caller** button takes a reference number or a name and date of birth.
+  - Phone or in person is set when the contact starts; **Change** on the timer fixes a mistake.
+  - Safety is **No / Yes**.
+  - Reason for calling is gone.
+  - Screening answers are Yes / No / **Skip**, and a concern adds its need straight away, with Undo.
+  - A chosen client shows as one line.
+  - The "Still to ask" footer is gone.
+- **Identify:**
+  - The script box is gone.
+  - Search is one form, with ZIP and SSN as optional fields.
+  - No match offers **Search Last Name Only**, **Save Name Only** or **Register New Client**.
+  - **Stay Anonymous**.
+  - "Not the right person" is on Identify only.
+- **Interactions:**
+  - The needs row and screening grid are gone.
+  - Add an interaction from one box, which suggests common resources.
+  - Units show beside Minutes, and "Type" is the label.
+  - A card only flags what's missing.
+  - The minutes warning waits for Wrap Up.
+- **Wrap Up:**
+  - "Pick an outcome for each need."
+  - Shorter outcomes: Still open, Info given, Connected, Handed off, Sent to crisis, Couldn't help, Declined.
+  - One **Before you close** list with **Go to Step**.
+  - **Show What's Sent** for the state table.
+  - The closed screen is two lines and **Start Next Contact**.
+- **Elsewhere:**
+  - ASC Contacts dropped its intro.
+  - The client ASC tab dropped the duplicate Open needs card.
+  - The side panel dropped its labels.
+  - Shorter buttons: Attach and View, Enroll, Close as Transfer, Cancel, Search Again, Get Signature, View History.
+
+**Supervisor corrections.** An ASC supervisor can choose **Edit Closed Contact**, give a reason, and change any step's answers. Who the contact is can't change. **Save Corrections** checks every need still has an outcome. It then logs who changed what and why on the contact, and adds a correction note with the updated summary to the record. Coordinators see the contact locked. Prototype only: **Demo: sign in as** in the sidebar switches between Logan Bialik (coordinator) and Priya Natarajan (supervisor).
+
+**Data:** saved v4.0 contacts upgrade in place: old outcome names, safety and screening answers, and staff roles.
+
+**Tests:** 673 checks across both data sources, including corrections, the upgrade, and the new screens. The WCAG 2.2 AA audit script finds nothing.
+
 ## v4.0.2: Automatic contact summary
 
 - **Closing a contact saves a summary as a case note.** It covers who called, the reason, their words, screening, each need and its outcome, each interaction, follow-up dates, on-site steps and the IDs. It goes on the client's record (tagged ASC), or stays on the contact while the person is anonymous and moves to their record when they identify. Urgent transfers get one too. It's a normal note, so it can be edited.

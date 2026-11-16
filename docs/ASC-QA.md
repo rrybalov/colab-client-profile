@@ -128,8 +128,14 @@ Live walk-through of the production site in Chrome at 1066×807, then failure an
 | D9 | The ASC tab was cut off on a laptop | Minor | Heuristic 6 | Tighter tab spacing under 1280px |
 | R1 | The server accepted any shape or length for needs and interactions | Major | Code review | Fields picked, trimmed and capped |
 
+## v4.1 simplification and corrections (11/15/2026)
+All 30 simplification items shipped, plus supervisor corrections. The regression suite passes in both data sources (673 checks). The audit script finds nothing across 30+ states, at 320px reflow and with 1.4.12 text spacing; it also walks the keyboard through the correction flow. The steps were checked visually at 1440, 1066 and 390 wide.
+
+### Placeholders hidden on screen, still in the data
+`[code TBD]` on interaction types and places of service; `[confirm number]` on resolve Crisis Services (Allegheny Link's number also still needs confirming); `[form TBD]` on the consent form; `[scanner integration TBD]`; the gender option `[state code set]` (removed from the list until the state's code set is in).
+
 ### Still open (decisions, not defects)
-- How a closed contact gets corrected (supervisor reopen, or an addendum).
+- Who besides ASC supervisors can correct a closed contact, and whether a correction needs a second sign-off.
 - County holidays in the 7-day follow-up, the state's unit rounding rule, and real service and place-of-service codes.
 - Screen-reader sessions with coordinators who use NVDA or JAWS.
 - Where ASC lives long-term. The CoLab menu is a way in for now.

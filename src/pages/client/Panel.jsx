@@ -109,7 +109,7 @@ export function Panel({ client, open, setOpen, tag }) {
     <aside className="panel" aria-label="Case notes and action items">
       <div className="panel-head">
         <button type="button" className="rail-btn" aria-label="Collapse case notes and action items" aria-expanded="true" onClick={() => setOpen(false)}><Icon name="chevronRight" size={18} /></button>
-        <span className="private-pill">{tag ? 'New notes and items tagged ' + tag : 'Only visible to you'}</span>
+        {!tag && <span className="private-pill">Only visible to you</span>}
       </div>
       <PanelNotes client={client} tag={tag} />
       <PanelActions client={client} tag={tag} />

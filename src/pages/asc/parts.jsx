@@ -1,7 +1,7 @@
 // Small pieces the ASC screens share: option buttons, sections, the screening summary and contact labels.
 import React, { useEffect, useRef } from 'react';
 import { Icon } from '../../ui/icons.jsx';
-import { SCREENING, isConcern, CHANNELS, clockTime, usDate } from '../../data/asc.js';
+import { SCREENING, isConcern, CHANNELS, clockTime, usDate, shown } from '../../data/asc.js';
 
 // One answer out of several, as toggle buttons. Pressing the chosen answer again clears it, unless `required`.
 export function Options({ label, labelId, value, options, onChange, concern, required, small }) {
@@ -14,7 +14,7 @@ export function Options({ label, labelId, value, options, onChange, concern, req
         return (
           <button key={v} type="button" className={'opt' + (warn ? ' is-concern' : '') + (o.danger ? ' is-danger' : '')} aria-pressed={on}
             onClick={() => onChange(on && !required ? null : v)}>
-            {on && <Icon name="checkSmall" size={14} />}{text}
+            {on && <Icon name="checkSmall" size={14} />}{shown(text)}
           </button>
         );
       })}
@@ -35,6 +35,11 @@ export function Section({ id, title, hint, icon, children, aside, className = ''
       {children}
     </section>
   );
+}
+
+// Each step's heading, for screen readers: the step tabs already show it on screen.
+export function StepHeading({ children }) {
+  return <h2 className="sr-only">{children}</h2>;
 }
 
 export function ScreeningSummary({ screening }) {

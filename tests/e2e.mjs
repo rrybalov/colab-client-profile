@@ -823,15 +823,25 @@ async function run(mode) {
     check('90 days lands on a weekday', ASC.addDaysOnWeekday('2026-11-04', 90) === '2027-02-02' && ASC.addDaysOnWeekday('2026-11-04', 3) === '2026-11-09');
     check('units: 15 minutes each, at least 1', ASC.unitsFor(0) === 0 && ASC.unitsFor(7) === 1 && ASC.unitsFor(19) === 1 && ASC.unitsFor(23) === 2 && ASC.unitsFor(60) === 4);
     check('service codes', ASC.serviceCode('Benefit Assistance · T1016BA') === 'T1016BA' && ASC.serviceCode('Casefinding [code TBD]') === '[TBD]');
+    check('placeholders are hidden on screen', ASC.shown('Telephone [code TBD]') === 'Telephone' && ASC.shown('Allegheny Link') === 'Allegheny Link');
+    // v4.0 data upgrades: old outcome names, safety answers and screening answers
+    const B = await import('../src/data/backend-asc.js');
+    const old = await source();
+    old.ascModel = 1;
+    const k0 = old.contacts.find((k) => k.status === 'closed');
+    k0.needs[0].outcome = 'Keep open with a follow-up'; k0.intake.safety = 'Asked: no danger now'; k0.screening.mh = 'Prefers not to say';
+    old.staff.forEach((x) => { delete x.role; });
+    B.listContacts(old);
+    check('v4.0 answers upgrade to the new names', k0.needs[0].outcome === 'Still open' && k0.intake.safety === 'No' && k0.screening.mh === 'Skip' && Array.isArray(k0.corrections));
+    check('staff gain roles', old.staff.find((x) => x.id === 'u4').role === 'ASC Supervisor' && old.staff.find((x) => x.id === 'u1').role === 'ASC Coordinator');
   });
 
   const contactId = () => (pg.url().match(/#asc\/contact\/([^/]+)/) || [])[1];
   const contactOf = async (id) => (await source()).contacts.find((k) => k.id === id);
   const opt = (group, name) => pg.locator(`[aria-labelledby="${group}"]`).getByRole('button', { name, exact: true });
   const fillIntake = async () => {
-    await btn('Asked: no danger now', true).click(); await btn('Parent or guardian', true).click(); await btn('Child, 0–17', true).click();
+    await opt('q-safety', 'No').click(); await btn('Parent or guardian', true).click(); await btn('Child, 0–17', true).click();
     await pg.fill('#asc-story', 'Calling about her son, 6. Sent home from school twice this week.');
-    await btn('Find services', true).click();
     for (const [q, a] of [['mh', 'Yes'], ['ph', 'Yes, OK'], ['house', 'Yes, stable'], ['food', 'Sometimes'], ['su', 'No']]) await opt('q-' + q, a).click();
     await btn('Medical Assistance or HealthChoices', true).click(); await btn('School', true).click();
   };
@@ -862,24 +872,29 @@ async function run(mode) {
     check('it has an event ID and call log ID', /^EV-26-\d{6}$/.test(k.ref) && (await text('.client-head')).includes(k.ref) && (await text('.client-head')).includes(k.logId));
     check('four steps', (await count('.asc-step')) === 4);
     check('runs a call timer', /On call/.test(await text('.asc-live')));
-    await btn('Returning Caller', true).click();
-    await pg.fill('#asc-ref', '999999'); await btn('Find', true).click();
-    await pg.waitForSelector('#asc-ref-err');
-    check('an unknown reference number says so', (await text('#asc-ref-err')).includes('No contact has that reference number'));
-    await pg.fill('#asc-ref', '142'); await btn('Find', true).click();
+    check('the header is short: IDs only, one tag, no save status', (await count('.client-head .tag')) === 1 && !(await text('.client-head')).includes('Coordinator') && !(await text('.client-head')).includes('saved'));
+    check('History is hidden until there is history', (await count('.topbar button:has-text("History")')) === 0);
+    check('one way to look up a caller', (await count('#asc-btn-look')) === 1 && (await count('text=Returning Caller')) === 0);
+    check('no reason-for-calling question', (await count('#h-reason')) === 0);
+    await btn('Look Up Caller', true).click();
+    await btn('Search', true).click();
+    check('lookup needs a reference number or a name', (await text('#asc-look-err')).includes('reference number, or a first or last name'));
+    await pg.fill('#asc-ref', '999999'); await btn('Search', true).click();
+    await pg.waitForSelector('#asc-look-err');
+    check('an unknown reference number says so', (await text('#asc-look-err')).includes('No contact has that reference number'));
+    await pg.fill('#asc-ref', '142'); await btn('Search', true).click();
     await pg.waitForSelector('.asc-found');
-    await pg.getByRole('button', { name: /Add to This Contact/ }).click();
+    await btn('Attach and View', true).click();
     await pg.waitForSelector('.modal .asc-history');
     check('previous interactions: open items first', (await text('.modal .asc-open')).includes('Mental health services for a child'));
     check('and both earlier contacts', (await count('.modal .asc-event')) === 2 && (await text('.modal')).includes('Dana Whitfield'));
     await btn('Done', true).click();
+    check('History shows once there is some', (await count('.topbar button:has-text("History")')) === 1);
     await fillIntake();
-    check('a concern offers to add the need', (await count('text=Add Need: Mental health services for a child')) === 1);
-    await pg.getByRole('button', { name: 'Add Need: Mental health services for a child' }).click();
-    await pg.getByRole('button', { name: 'Add Need: Food or other benefits' }).click();
-    check('needs added from screening', (await count('.asc-needs li')) === 2);
+    check('screening answers are Yes, No and Skip', (await pg.locator('[aria-labelledby="q-mh"] button').allInnerTexts()).map((x) => x.trim()).join() === 'Yes,No,Skip');
+    check('a concern adds its need straight away', (await count('.asc-needs li')) === 2 && (await text('.asc-needs')).includes('Food or other benefits') && (await count('text=Add Need:')) === 0);
     await pg.waitForTimeout(900);
-    check('the intake is complete', (await text('.asc-gaps')).includes('Intake complete') && (await count('.asc-step-num.is-done')) === 1);
+    check('the intake is complete', (await count('.asc-step-num.is-done')) === 1 && (await count('.asc-gaps')) === 0);
     await reload(); await pg.waitForSelector('.asc-safety');
     check('answers are saved', (await pg.inputValue('#asc-story')).startsWith('Calling about her son') && (await btn('School', true).getAttribute('aria-pressed')) === 'true');
     const saved = await contactOf(kid);
@@ -896,7 +911,8 @@ async function run(mode) {
     await btn('Select Jayden Ruiz', true).click();
     await pg.waitForSelector('#h-confirm');
     check('confirm shows the guardian and coverage on file', (await text('.asc-card')).includes('Maria Ruiz') && (await text('.asc-card')).includes('HealthChoices (CCBH)'));
-    await btn('Enroll and Continue', true).click();
+    check('no script box on Identify', (await count('text=You might say')) === 0);
+    await btn('Enroll', true).click();
     await pg.waitForSelector('#h-ix');
     const db = await source();
     const k = db.contacts.find((x) => x.id === kid);
@@ -906,18 +922,22 @@ async function run(mode) {
     check('earlier contacts tied by reference number are his too', db.contacts.filter((x) => x.group === k.group).every((x) => x.clientId === 'c65'));
     check('their notes moved to his record', db.notes.filter((n) => n.clientId === 'c65' && n.tag === 'ASC').length >= 2);
     check('the header shows him', (await text('.client-head h1')) === 'Jayden Ruiz' && (await text('.topbar')).includes('Jayden Ruiz'));
-    check('the client panel takes over', (await text('aside.panel')).includes('tagged ASC'));
+    check('the client panel takes over', (await count('aside.panel .private-pill')) === 0 && (await text('aside.panel')).includes('Case Notes'));
   });
 
   await part('ASC: interactions, reminders and follow-ups', async () => {
-    await pg.getByRole('button', { name: 'IBHS evaluation info' }).click();
+    check('needs and screening aren’t repeated here', (await count('.asc-needbar')) === 0 && (await count('#h-scr')) === 0);
+    await pg.fill('#asc-custom-ix', 'IBHS evaluation info'); await btn('Add', true).click();
     await pg.waitForTimeout(150);
     check('a new interaction focuses its minutes', await pg.evaluate(() => /-min$/.test(document.activeElement.id)));
     await pg.keyboard.type('19');
-    await pg.getByRole('button', { name: '211' }).click(); await pg.waitForTimeout(150); await pg.keyboard.type('8');
+    check('a common resource fills in its details', (await pg.inputValue('.asc-ix >> nth=0 >> input[id$="-what"]')).includes('IBHS') && (await pg.inputValue('.asc-ix >> nth=0 >> select[id$="-need"]')) === 'Mental health services for a child');
+    await pg.fill('#asc-custom-ix', '211'); await btn('Add', true).click(); await pg.waitForTimeout(150); await pg.keyboard.type('8');
     check('one interaction per resource', (await count('.asc-ix')) === 2);
-    check('units are calculated', (await pg.locator('.asc-units').allInnerTexts()).join() === '1,1');
+    check('units show beside minutes', (await pg.locator('.asc-units').allInnerTexts()).join() === '1 unit,1 unit');
     check('place defaults to Telephone', (await pg.inputValue('.asc-ix >> nth=0 >> select[id$="-place"]')) === 'Telephone [code TBD]');
+    check('placeholders aren’t shown in dropdowns', !(await text('.asc-ix')).includes('[code TBD]') && !(await text('.asc-ix')).includes('Ready for state reporting'));
+    check('no minutes warning while the call is live', (await count('.asc-view .notice.is-warn')) === 0);
     const first = pg.locator('.asc-ix').first();
     await first.getByRole('button', { name: 'Add Reminder' }).click();
     await first.locator('input.is-block').fill('Call Maria to confirm the IBHS appointment');
@@ -948,22 +968,29 @@ async function run(mode) {
     await pg.getByRole('button', { name: 'Next: Wrap Up' }).click();
     await pg.waitForSelector('#h-wneeds');
     check('Wrap Up: finish documenting today’s conversation', (await text('#h-wneeds')).includes('Finish documenting today'));
+    check('the state table is behind Show What’s Sent', (await count('.table[aria-label="What goes to the state"]')) === 0);
+    await btn('Show What’s Sent', true).click();
     check('the state table has a row per interaction', (await count('.table[aria-label="What goes to the state"] .tr.is-row')) === 2);
+    check('one list of what to check, with Go to Step', (await count('.asc-checks li')) >= 1 && (await count('.asc-checks button:has-text("Go to Step")')) === (await count('.asc-checks li.is-error, .asc-checks li.is-warn')));
     await btn('Close Contact', true).click();
     check('closing needs an outcome for each need', (await text('.asc-foot')).includes('Choose an outcome') && (await pg.evaluate(() => document.activeElement.tagName)) === 'SELECT');
     const sels = pg.locator('.asc-outcomes select');
-    await sels.nth(0).selectOption('Keep open with a follow-up'); await sels.nth(1).selectOption('Connected');
+    check('short outcome names', (await sels.nth(0).locator('option').allInnerTexts()).join() === 'Choose an outcome,Still open,Info given,Connected,Handed off,Sent to crisis,Couldn’t help,Declined');
+    await sels.nth(0).selectOption('Still open'); await sels.nth(1).selectOption('Connected');
     await btn('Close Contact', true).click();
     await pg.waitForSelector('.asc-closed');
     const k = await contactOf(kid);
     check('the contact is closed', k.status === 'closed' && k.closedKind === 'client' && !!k.endedAt);
     check('the summary says it is ready to report', (await text('.asc-summary')).includes('Ready for state reporting'));
     const auto = (await source()).notes.find((n) => n.clientId === 'c65' && n.tag === 'ASC' && n.text.includes(k.ref));
-    check('closing saves an automatic summary on the client’s record', !!auto && /^ASC phone call summary, /.test(auto.text) && auto.text.includes('Outcome: keep open with a follow-up') && auto.text.includes('Follow-up:'));
+    check('closing saves an automatic summary on the client’s record', !!auto && /^ASC phone call summary, /.test(auto.text) && auto.text.includes('Outcome: still open') && auto.text.includes('Follow-up:'));
     check('the panel shows it straight away', (await text('aside.panel')).includes('ASC phone call summary') && (await text('.asc-summary')).includes('Summary saved as a case note'));
+    check('the closed screen is two lines and one next step', (await count('.asc-summary li')) === 2 && (await count('.asc-closed ~ .asc-inline-row button')) === 1 && (await text('.asc-view')).includes('Start Next Contact'));
+    check('a coordinator can’t edit a closed contact', (await count('text=Edit Closed Contact')) === 0);
     await go('#client/c65/asc');
     await pg.waitForSelector('.asc-history');
     check('Jayden’s ASC tab shows his contacts', (await count('.asc-event')) === 3 && (await text('.info-card')).includes('Active'));
+    check('without a separate open-needs card', (await count('.info-card')) === 1);
     check('and his latest screening', (await text('.asc-screen-grid')).includes('Sometimes'));
     await go('#client/c2/overview');
     check('the ASC tab only shows for enrolled clients', (await count('.tabs a[href$="/asc"]')) === ((await source()).clients.find((c) => c.id === 'c2').colabs.includes('ASC') ? 1 : 0));
@@ -975,19 +1002,19 @@ async function run(mode) {
     await pg.waitForSelector('#asc-site');
     const id = contactId();
     check('in person shows the site and Visit ID', (await text('.client-head')).includes('Visit ID') && /In person/.test(await text('.asc-live')));
+    check('no contact-type question; the timer can change it', (await count('#h-type')) === 0 && (await count('.asc-live-change')) === 1);
     await opt('h-privacy', 'Shared space, like a lobby').click();
     check('a shared space warns before sensitive questions', (await count('.notice.is-warn')) === 1);
     await fillIntake();
-    await pg.getByRole('button', { name: 'Add Need: Mental health services for a child' }).click();
     await pg.getByRole('link', { name: /Identify/ }).click();
-    await btn('Continue Anonymously', true).click();
+    await btn('Stay Anonymous', true).click();
     await pg.fill('#a-name', 'Rae'); await pg.fill('#a-zip', '15212');
     await pg.getByRole('link', { name: /Interactions/ }).click();
-    await pg.getByRole('button', { name: 'MATP' }).click(); await pg.waitForTimeout(150); await pg.keyboard.type('12');
+    await pg.fill('#asc-custom-ix', 'MATP'); await btn('Add', true).click(); await pg.waitForTimeout(150); await pg.keyboard.type('12');
     check('in person, place defaults to Office', (await pg.inputValue('select[id$="-place"]')) === 'Office [code TBD]' && (await pg.inputValue('select[id$="-how"]')) === 'Number given');
     check('on-site steps', (await count('#h-onsite')) === 1);
     await opt('h-idc', 'Photo ID').click();
-    await btn('Sign on the Tablet', true).click(); await btn('Scan', true).click();
+    await btn('Get Signature', true).click(); await btn('Scan', true).click();
     await btn('Add New Case Note', true).click();
     await pg.fill('#k-note-draft', 'Met at the front desk. Will come back Tuesday.');
     await pg.locator('aside.panel').getByRole('button', { name: 'Save' }).click();
@@ -995,8 +1022,12 @@ async function run(mode) {
     const k = await contactOf(id);
     check('anonymous notes stay on the contact', k.notes.length === 1 && k.anon.name === 'Rae' && !k.clientId);
     check('on-site steps are saved', k.onsite.idCheck === 'Photo ID' && !!k.onsite.consentSigned && k.onsite.docs.length === 1);
+    await pg.locator('.asc-live-change').click(); await pg.waitForTimeout(400);
+    check('Change on the timer switches to a phone call, and places follow', /On call/.test(await text('.asc-live')) && (await pg.inputValue('select[id$="-place"]')) === 'Telephone [code TBD]' && (await count('#h-onsite')) === 0);
+    await pg.locator('.asc-live-change').click(); await pg.waitForTimeout(400);
+    check('and back', /In person/.test(await text('.asc-live')) && (await pg.inputValue('select[id$="-place"]')) === 'Office [code TBD]');
     await pg.getByRole('link', { name: /Wrap Up/ }).click();
-    await pg.locator('.asc-outcomes select').first().selectOption('Information given');
+    await pg.locator('.asc-outcomes select').nth(0).selectOption('Info given'); await pg.locator('.asc-outcomes select').nth(1).selectOption('Handed off');
     await btn('Close Contact', true).click();
     await pg.waitForSelector('.asc-closed');
     const closed = await contactOf(id);
@@ -1009,13 +1040,13 @@ async function run(mode) {
     await btn('New Phone Contact', true).click();
     await pg.waitForSelector('.asc-safety');
     const id = contactId();
-    await btn('Yes: start urgent routing', true).click();
+    await pg.locator('.asc-safety').getByRole('button', { name: 'Yes', exact: true }).click();
     await pg.waitForSelector('.modal .asc-dest');
     await btn(/988 Lifeline/).click();
-    await btn('Log Transfer and Close Contact', true).click();
+    await btn('Close as Transfer', true).click();
     await pg.waitForSelector('.asc-closed');
     const k = await contactOf(id);
-    check('logs the transfer and closes', k.closedKind === 'urgent' && k.urgent.dest === '988 Lifeline' && pg.url().endsWith('/wrap-up'));
+    check('logs the transfer and closes', k.closedKind === 'urgent' && k.urgent.dest === '988 Lifeline' && pg.url().endsWith('/wrap-up') && k.intake.safety === 'Yes');
   });
 
   await part('ASC: register a new client', async () => {
@@ -1024,10 +1055,11 @@ async function run(mode) {
     await pg.waitForSelector('.asc-safety');
     const id = contactId();
     await pg.getByRole('link', { name: /Identify/ }).click();
+    check('one search with optional ZIP and SSN', (await count('#i-zip')) === 1 && (await count('#i-ssn')) === 1 && (await count('text=Advanced Search')) === 0);
     await pg.fill('#i-first', 'Quinlan'); await pg.fill('#i-last', 'Abernathy'); await btn('Search MCI', true).click();
     await pg.waitForSelector('.asc-nomatch');
-    check('no match offers looser searches', (await count('.asc-nomatch .opt')) >= 1);
-    await btn('Create New Client', true).click();
+    check('no match: last name only, save name only, or register', (await count('.asc-nomatch button')) === 3 && (await text('.asc-nomatch')).includes('Search Last Name Only'));
+    await btn('Register New Client', true).click();
     await btn('Register and Enroll', true).click();
     check('required fields are checked', (await text('#n-err')).includes('gender') && (await pg.evaluate(() => document.activeElement.id)) === 'n-gender');
     await pg.selectOption('#n-gender', 'Female'); await pg.fill('#n-dob', '1991-05-02'); await pg.fill('#n-street', '12 Federal St'); await pg.fill('#n-zip', '15212');
@@ -1041,6 +1073,49 @@ async function run(mode) {
     await pg.waitForSelector('.client-head');
     check('their profile opens', (await text('.client-head h1')) === 'Quinlan Abernathy');
   });
+
+  await part('ASC: supervisor corrections', async () => {
+    const B = await import('../src/data/backend-asc.js');
+    const copy = await source();
+    let refused = null;
+    try { B.startCorrection(copy, kid, { reason: 'x' }); } catch (e) { refused = e; }
+    check('a coordinator can’t start a correction (403)', refused && refused.status === 403);
+    copy.userId = 'u4';
+    try { B.startCorrection(copy, kid, {}); refused = null; } catch (e) { refused = e; }
+    check('a correction needs a reason', refused && refused.status === 400);
+    B.startCorrection(copy, kid, { reason: 'Test' });
+    try { B.updateContact(copy, kid, { candidateId: 'c3' }); refused = null; } catch (e) { refused = e; }
+    check('who the contact is can’t change in a correction', refused && /can’t change/.test(refused.message));
+
+    await go('#home');
+    check('a demo switch signs in as a supervisor', (await count('#switch-user')) === 1);
+    await pg.selectOption('#switch-user', 'u4');
+    await pg.waitForSelector('.side-user:has-text("Priya")');
+    check('the sidebar shows the role', (await text('.side-user')).includes('ASC Supervisor'));
+    await go(`#asc/contact/${kid}/interactions`);
+    await pg.waitForSelector('.asc-locked');
+    await btn('Edit Closed Contact', true).click();
+    await btn('Start Editing', true).click();
+    check('the reason is required', (await text('#corr-err')).includes('Give a reason') && (await pg.evaluate(() => document.activeElement.id)) === 'corr-reason');
+    await pg.fill('#corr-reason', 'Wrong minutes on interaction 1');
+    await btn('Start Editing', true).click();
+    await pg.waitForSelector('.asc-correcting');
+    check('the steps unlock, with a bar saying so', (await count('fieldset.asc-locked')) === 0 && (await text('.asc-correcting')).includes('Wrong minutes on interaction 1'));
+    await pg.locator('input[id$="-min"]').first().fill('25');
+    await pg.waitForTimeout(900);
+    await btn('Save Corrections', true).click();
+    await pg.waitForSelector('.asc-corrections');
+    const db = await source();
+    const k = db.contacts.find((x) => x.id === kid);
+    check('the change is saved and logged', k.interactions[0].min === '25' && !k.correction && k.corrections.length === 1 && k.corrections[0].by === 'u4' && k.corrections[0].changed.includes('interactions'));
+    check('and noted on the record', db.notes.some((n) => n.clientId === 'c65' && n.text.startsWith('ASC correction to ' + k.ref) && n.text.includes('Reason: Wrong minutes')));
+    check('the closed screen lists it', (await text('.asc-corrections')).includes('Priya Natarajan'));
+    await go('#home');
+    await pg.selectOption('#switch-user', 'u1');
+    await pg.waitForSelector('.side-user:has-text("Logan")');
+  });
+
+  const openHistory = async () => { await go(`#asc/contact/${kid}/wrap-up`); await btn('History', true).click(); };
 
   await part('ASC: QA pass 2 (v4.0.1)', async () => {
     const B = await import('../src/data/backend-asc.js');
@@ -1070,13 +1145,12 @@ async function run(mode) {
     await btn('New Phone Contact', true).click();
     await pg.waitForSelector('.asc-safety');
     const id = contactId();
-    await btn('Returning Caller', true).click(); await pg.waitForTimeout(100);
-    check('Returning Caller focuses the reference number', (await pg.evaluate(() => document.activeElement.id)) === 'asc-ref');
+    await btn('Look Up Caller', true).click(); await pg.waitForTimeout(100);
+    check('Look Up Caller focuses the reference number', (await pg.evaluate(() => document.activeElement.id)) === 'asc-ref');
     await pg.locator('.asc-inline').getByRole('button', { name: 'Cancel' }).click(); await pg.waitForTimeout(150);
-    check('Cancel returns focus to its button', (await pg.evaluate(() => document.activeElement.id)) === 'asc-btn-return');
-    await btn('They Gave Their Name', true).click(); await pg.waitForTimeout(100);
-    check('They Gave Their Name focuses first name', (await pg.evaluate(() => document.activeElement.id)) === 'q-first');
-    await pg.fill('#q-first', 'Jayden'); await pg.fill('#q-last', 'Ruiz'); await btn('Search MCI', true).click();
+    check('Cancel returns focus to its button', (await pg.evaluate(() => document.activeElement.id)) === 'asc-btn-look');
+    await btn('Look Up Caller', true).click();
+    await pg.fill('#q-first', 'Jayden'); await pg.fill('#q-last', 'Ruiz'); await btn('Search', true).click();
     await btn('Select Jayden Ruiz', true).click(); await pg.waitForTimeout(250);
     check('choosing a match moves focus to it', (await pg.evaluate(() => document.activeElement.id)) === 'h-match');
     check('focusing never scrolls the app shell', await pg.evaluate(() => document.scrollingElement.scrollTop === 0 && document.scrollingElement.scrollHeight <= innerHeight + 1));
@@ -1089,7 +1163,7 @@ async function run(mode) {
       check('a failed save keeps what was typed', (await pg.inputValue('#asc-story')) === 'Typed while the connection was down.' && (await text('.asc-save')).includes('still here'));
       await ctx.unroute(`**/api/asc/contacts/${id}`);
       await pg.locator('.asc-save').getByRole('button', { name: 'Try Again' }).click();
-      await pg.waitForSelector('.asc-save:not(.is-error)');
+      await pg.waitForSelector('.asc-save', { state: 'detached' });
       await pg.waitForTimeout(200);
       check('Try Again saves it', (await contactOf(id)).intake.story === 'Typed while the connection was down.');
     }
@@ -1112,14 +1186,14 @@ async function run(mode) {
       '#client/c1/overview dialog': async () => { await go('#client/c1/overview'); await btn('View Address Details').click(); await pg.locator('.modal .addr-toggle').nth(1).click(); },
       '#client/c1/address-history': async () => { await go('#client/c1/address-history'); await btn('Timeline').click(); await pg.locator('.addr-card .addr-toggle').first().click(); await pg.locator('.select-btn').click(); },
       '#client/c1/address-history table': async () => { await go('#client/c1/address-history'); await pg.keyboard.press('Escape'); await btn('Table').click(); await pg.locator('.addr-row').first().click(); },
-      'ASC intake': async () => { await go('#asc'); await btn('New Phone Contact', true).click(); await pg.waitForSelector('.asc-safety'); await btn('Returning Caller', true).click(); await btn('Find', true).click(); },
+      'ASC intake': async () => { await go('#asc'); await btn('New Phone Contact', true).click(); await pg.waitForSelector('.asc-safety'); await btn('Look Up Caller', true).click(); await btn('Search', true).click(); },
       'ASC identify': async () => { await pg.getByRole('link', { name: /Identify/ }).click(); await pg.fill('#i-last', 'Nobodyhere'); await btn('Search MCI', true).click(); await pg.waitForSelector('.asc-nomatch'); },
-      'ASC new client': async () => { await btn('Create New Client', true).click(); await btn('Register and Enroll', true).click(); },
-      'ASC anonymous': async () => { await btn('Back to Search', true).click(); await btn('Continue Anonymously', true).click(); },
-      'ASC interactions': async () => { await pg.getByRole('link', { name: /Interactions/ }).click(); await pg.getByRole('button', { name: 'MATP', exact: true }).click(); await pg.locator('.asc-ix').first().getByRole('button', { name: 'Add Reminder' }).click(); },
+      'ASC new client': async () => { await btn('Register New Client', true).click(); await btn('Register and Enroll', true).click(); },
+      'ASC anonymous': async () => { await btn('Back to Search', true).click(); await btn('Stay Anonymous', true).click(); },
+      'ASC interactions': async () => { await pg.getByRole('link', { name: /Interactions/ }).click(); await pg.fill('#asc-custom-ix', 'MATP'); await btn('Add', true).click(); await pg.locator('.asc-ix').first().getByRole('button', { name: 'Add Reminder' }).click(); },
       'ASC wrap up': async () => { await pg.getByRole('link', { name: /Wrap Up/ }).click(); await btn('Close Contact', true).click(); },
       'ASC urgent dialog': async () => { await btn('Urgent Routing', true).click(); await pg.waitForSelector('.asc-dest'); },
-      'ASC history dialog': async () => { await pg.keyboard.press('Escape'); await btn('Previous Interactions', true).click(); await pg.waitForSelector('.modal'); },
+      'ASC history dialog': async () => { await pg.keyboard.press('Escape'); await openHistory(); await pg.waitForSelector('.modal'); },
       '#client/c65/asc': async () => { await pg.keyboard.press('Escape'); await go('#client/c3/asc'); await pg.waitForSelector('.asc-history'); }
     };
     for (const h of ['#home', '#my-action-items', '#my-case-notes', '#starred-clients', '#client/c1/overview', '#client/c1/services', '#client/c1/program-info', '#client/c1/providers', '#client/c1/case-notes', '#client/c1/service/s1', '#client/c1/provider/Mercy', '#asc', ...Object.keys(states)]) {
@@ -1165,8 +1239,8 @@ async function run(mode) {
     await go('#asc');
     await btn('New Phone Contact', true).focus(); await pg.keyboard.press('Enter');
     await pg.waitForSelector('.asc-safety');
-    await btn('Asked: no danger now', true).focus(); await pg.keyboard.press('Space');
-    check('answers toggle with the keyboard', (await btn('Asked: no danger now', true).getAttribute('aria-pressed')) === 'true');
+    await opt('q-safety', 'No').focus(); await pg.keyboard.press('Space');
+    check('answers toggle with the keyboard', (await opt('q-safety', 'No').getAttribute('aria-pressed')) === 'true');
     await btn('Urgent Routing', true).focus(); await pg.keyboard.press('Enter');
     await pg.waitForSelector('.modal');
     check('the dialog takes focus', await pg.evaluate(() => !!document.activeElement.closest('.modal')));
@@ -1174,8 +1248,8 @@ async function run(mode) {
     check('and keeps it', await pg.evaluate(() => !!document.activeElement.closest('.modal')));
     await pg.keyboard.press('Escape');
     check('Escape closes it and focus goes back', (await count('.modal')) === 0 && (await pg.evaluate(() => document.activeElement.textContent)).includes('Urgent Routing'));
-    await btn('Returning Caller', true).click(); await btn('Cancel', true).click(); await pg.waitForTimeout(80);
-    check('closing a helper returns focus to its button', (await pg.evaluate(() => document.activeElement.id)) === 'asc-btn-return');
+    await btn('Look Up Caller', true).click(); await btn('Cancel', true).click(); await pg.waitForTimeout(80);
+    check('closing a helper returns focus to its button', (await pg.evaluate(() => document.activeElement.id)) === 'asc-btn-look');
   });
 
   await part('Phone width', async () => {

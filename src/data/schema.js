@@ -89,14 +89,14 @@ const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 export function normalizeStaff(s) {
   const first = str(s && s.first), last = str(s && s.last);
-  return { id: str(s && s.id), first, last, org: str(s && s.org), email: str(s && s.email), initials: str(s && s.initials) || (first[0] || '') + (last[0] || '') };
+  return { id: str(s && s.id), first, last, org: str(s && s.org), email: str(s && s.email), role: str(s && s.role), initials: str(s && s.initials) || (first[0] || '') + (last[0] || '') };
 }
 export function normalizeColab(c) {
   return { id: str(c && c.id), name: str(c && (c.name || c.id)), tag: str(c && (c.tag || c.name || c.id)).toUpperCase() };
 }
 /** @returns {Session} */
 export function normalizeSession(s) {
-  return { user: normalizeStaff(s && s.user), staff: arr(s && s.staff).map(normalizeStaff), colabs: arr(s && s.colabs).map(normalizeColab), canReset: bool(s && s.canReset) };
+  return { user: normalizeStaff(s && s.user), staff: arr(s && s.staff).map(normalizeStaff), colabs: arr(s && s.colabs).map(normalizeColab), canReset: bool(s && s.canReset), switchUsers: arr(s && s.switchUsers).map(str) };
 }
 
 function normalizeAddress(a) {
@@ -209,6 +209,8 @@ export function normalizeContact(k) {
     actions: arr(k.actions).map((x) => ({ id: str(x.id), text: str(x.text), assignee: str(x.assignee), due: str(x.due), done: bool(x.done), edited: bool(x.edited) })),
     links: arr(k.links).map((l) => ({ actionId: str(l.actionId), ixId: strOrNull(l.ixId), auto: strOrNull(l.auto) })),
     urgent: k.urgent ? { dest: str(k.urgent.dest), how: str(k.urgent.how), need: str(k.urgent.need), note: str(k.urgent.note), at: str(k.urgent.at) } : null,
+    correction: k.correction ? { by: str(k.correction.by), at: str(k.correction.at), reason: str(k.correction.reason), changed: arr(k.correction.changed).map(str) } : null,
+    corrections: arr(k.corrections).map((c) => ({ by: str(c.by), at: str(c.at), reason: str(c.reason), changed: arr(c.changed).map(str) })),
     client: k.client ? normalizeClientSummary(k.client) : null,
     candidate: k.candidate ? normalizeClientSummary(k.candidate) : null,
     possibleLinks: arr(k.possibleLinks).map(normalizeContactSummary)

@@ -19,7 +19,7 @@ What the app needs from a backend. Build these endpoints, set `dataSource: 'api'
 
 The shapes are defined in full, with types, in `src/data/schema.js`.
 
-**Staff** `{ id, first, last, org, email, initials }`
+**Staff** `{ id, first, last, org, email, initials, role }`. `role` is `ASC Coordinator`, `ASC Supervisor` or empty. Only an `ASC Supervisor` can correct a closed contact.
 
 **CoLab** `{ id, name, tag }`. `tag` is the uppercase label on notes and action items, such as `IPV` or `WELLNESS CHECKS`.
 
@@ -92,7 +92,7 @@ It **never** includes the full SSN.
 
 A **Contact** is one phone call or in-person visit. It starts anonymous. `clientId` is set once the person is identified and enrolled in ASC; until then its case notes and action items live on the contact itself.
 
-**Contact** `{ id, ref, channel, logId, site, startedAt, endedAt, status, closedKind, staff, clientId, identity, candidateId, path, group, priorRefs, linkedPrior, unverifiedName, anon, intake, screening, needs, interactions, followUp, onsite, notes, actions, links, urgent, client, candidate, possibleLinks }`
+**Contact** `{ id, ref, channel, logId, site, startedAt, endedAt, status, closedKind, staff, clientId, identity, candidateId, path, group, priorRefs, linkedPrior, unverifiedName, anon, intake, screening, needs, interactions, followUp, onsite, notes, actions, links, urgent, correction, corrections, client, candidate, possibleLinks }`. `correction` is `{ by, at, reason, changed[] }` while a supervisor is correcting a closed contact, else `null`; `corrections` lists finished ones.
 
 | Field | Meaning |
 | --- | --- |
@@ -118,7 +118,8 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 
 | Method and path | Returns | Notes |
 | --- | --- | --- |
-| `GET /session` | `{ user: Staff, staff: Staff[], colabs: CoLab[] }` | The signed-in person, everyone who can be assigned work, and the CoLabs. Loaded once at start. |
+| `GET /session` | `{ user: Staff, staff: Staff[], colabs: CoLab[], switchUsers?: string[] }` | The signed-in person, everyone who can be assigned work, and the CoLabs. Loaded once at start. `switchUsers` is prototype only. |
+| `PUT /session` | `{ ok }` | Prototype only. Body `{ userId }`, one of `switchUsers`: sign in as that demo user (a coordinator or a supervisor). A real deployment takes the user from sign-in instead. |
 | `GET /clients?starred=true` | `ClientSummary[]` | Every client this person has starred. |
 | `GET /clients/search?first=&last=&phone=&email=&mci=&dhs=&ssn=` | `{ total, results: ClientSummary[] }` | Any combination of fields; empty ones are left out. Matching: first and last names are case-insensitive substrings, and a household matches on a member's name. Phone and DHS ID compare digits only. `ssn` is the last 4. When more than 15 match, return the `total` and an empty `results`: the app asks the person to narrow the search. With no fields, return `400`. |
 | `GET /clients/:id` | `Client` | `404` if the client doesn't exist or this person can't see them. |
@@ -144,6 +145,8 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 | `PATCH /asc/contacts/:id` | `{ contact, notes, actions, removeActions }` | Body: any of `intake`, `screening`, `followUp`, `onsite`, `anon` (merged one level deep); `needs`, `interactions`, `notes`, `actions` (replaced whole); `channel`, `site`, `path`, `candidateId`, `unverifiedName`, `identity: "unverified"|null`, `linkedPrior: "linked"|"no"`, `priorRef` (attach a returning caller's earlier contacts), and the link operations `addLinks: [{ actionId, ixId }]`, `removeLinks: [actionId]`, `dropIxLinks: ixId`. The server keeps the two automatic follow-ups in step with `followUp` and returns the client action items it created or removed. |
 | `POST /asc/contacts/:id/link` | `{ contact, client, notes, actions, removeActions }` | Body `{ clientId }` for a client found in MCI, or `{ newClient: { first, last, dob, gender, ssn?, phone?, street?, city?, zip?, county?, living?, language? } }` to register one. Enrolls them in ASC (adds the `ASC` CoLab and an enrollment), moves the contact's notes and action items (and those of every contact in its group) to the client tagged `ASC`, and schedules follow-ups if allowed. Returns everything that changed. |
 | `POST /asc/contacts/:id/close` | `{ contact, notes }` | Body `{}` to close normally: every need needs an `outcome`, else `400`. Or `{ urgent: { dest, how, need, note } }` for urgent routing: that need closes as Transferred to crisis and the others stay open. Either way the server writes an automatic summary (`ASC phone call summary, …`): a client `Note` tagged `ASC` (returned in `notes`), or, for an anonymous contact, the first entry in `contact.notes`. A closed contact's answers can't change after this (`400`); notes and action items still can. |
+| `POST /asc/contacts/:id/correction` | `{ contact, notes }` | Supervisors only (`403` otherwise). Body `{ reason }` (required). Unlocks a closed contact's answers: intake, screening, needs, interactions, follow-up, on-site steps, anonymous details, site and channel. Who the contact is (client, identity, links) can't change. |
+| `POST /asc/contacts/:id/correction/finish` | `{ contact, notes }` | Supervisors only. Every need still needs an outcome. Logs `{ by, at, reason, changed }` in `corrections` and writes a case note: `ASC correction to EV-…`, the reason, what changed and the updated summary. |
 | `GET /asc/history?contactId=` or `?clientId=` | `{ openItems, contacts }` | What a coordinator sees when someone comes back: open needs and open ASC action items first, then each earlier contact with who handled it, its needs and outcomes, interactions, screening and notes. |
 
 **Automatic follow-ups.** When a contact has a client and `followUp.ok` is `Yes`, the server creates two action items, tagged `ASC` and assigned to the contact's coordinator: a follow-up 7 business days after the contact (weekends skipped) and a check-in 90 days after, moved to Monday if it lands on a weekend. Changing the way to reach them rewrites the first one's text; answering `No` deletes any that aren't done. County holidays are not skipped yet [not decided].

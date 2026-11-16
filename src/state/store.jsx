@@ -130,6 +130,11 @@ export function StoreProvider({ source, children }) {
           throw e;
         }
       },
+      // Prototype only: sign in as another demo user (an ASC coordinator or supervisor). Everything reloads.
+      async switchUser(id) {
+        await source.switchUser(id);
+        dispatchData({ type: 'clear' });
+      },
       async reset() {
         await source.reset();
         setPrefsState(null);

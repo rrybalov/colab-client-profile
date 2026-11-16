@@ -4,11 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { Icon, BrandMark } from '../../ui/icons.jsx';
 import { usePref } from '../../state/store.jsx';
 import { useSession } from '../../state/data.js';
-import { useContact, useContactEditor } from '../../state/asc.js';
+import { useContact, useContactEditor, useContactHistory } from '../../state/asc.js';
 import { useModalControls } from '../../state/modal.js';
-import { Link } from '../../router.jsx';
+import { Link, navigate } from '../../router.jsx';
 import { Loading, LoadError } from '../../ui/controls.jsx';
-import { STEPS, stepState, clockTime, minutesBetween, usDate } from '../../data/asc.js';
+import { STEPS, stepState, clockTime, minutesBetween, usDate, channelPatch } from '../../data/asc.js';
 import { Panel } from '../client/Panel.jsx';
 import { channelIcon, channelLabel, initials } from './parts.jsx';
 import { IntakeStep } from './Intake.jsx';
@@ -16,6 +16,7 @@ import { IdentifyStep } from './Identify.jsx';
 import { InteractionsStep } from './Interactions.jsx';
 import { WrapUpStep } from './WrapUp.jsx';
 import { ContactPanel } from './ContactPanel.jsx';
+import { EditClosed, CorrectionBar } from './Correction.jsx';
 
 const pad = (n) => String(n).padStart(2, '0');
 function useElapsed(k) {
@@ -31,9 +32,10 @@ function useElapsed(k) {
 const stepHref = (id, step) => ({ page: 'contact', id, step });
 export const contactStep = stepHref;
 
-function LiveChip({ k }) {
+function LiveChip({ k, edit }) {
   const elapsed = useElapsed(k);
   const open = k.status === 'open';
+  const other = k.channel === 'person' ? 'phone' : 'person';
   const what = k.channel === 'person' ? (open ? 'In person' : 'Visit ended') : (open ? 'On call' : 'Call ended');
   return (
     <div className={'asc-live' + (open ? ' is-live' : '')}>
@@ -44,25 +46,24 @@ function LiveChip({ k }) {
         <span aria-hidden="true">{open ? elapsed : minutesBetween(k.startedAt, k.endedAt) + ' min'}{k.site ? ' · ' + k.site : ''}</span>
         <span className="sr-only">{open ? 'Started ' + clockTime(k.startedAt) : 'Lasted ' + minutesBetween(k.startedAt, k.endedAt) + ' minutes'}</span>
       </div>
+      {open && <button type="button" className="link-btn is-small asc-live-change" onClick={() => edit(channelPatch(k, other), { now: true })} aria-label={'Change to ' + (other === 'person' ? 'in person' : 'phone call')}>Change</button>}
     </div>
   );
 }
 
-// Shown all the time; only a failure is announced, so screen readers aren't told "Saving" on every keystroke.
+// Saving is silent. Only a failure shows, and is announced.
 function SaveState({ status, retry }) {
   const bad = status === 'error' || status === 'refused';
-  const text = { saved: 'All changes saved', saving: 'Saving…', editing: 'Saving…', error: 'Not saved yet. Your changes are still here.', refused: 'That change wasn’t saved.' }[status];
   return (
     <>
-      <span className={'asc-save' + (bad ? ' is-error' : '')} aria-hidden={!bad}><Icon name={bad ? 'alert' : 'check'} size={14} />{text}
-        {status === 'error' && <button type="button" className="link-btn is-small" onClick={retry}>Try Again</button>}</span>
+      {bad && <div className="asc-save-cell"><span className="asc-save is-error"><Icon name="alert" size={14} />{status === 'error' ? 'Not saved yet. Your changes are still here.' : 'That change wasn’t saved.'}
+        {status === 'error' && <button type="button" className="link-btn is-small" onClick={retry}>Try Again</button>}</span></div>}
       <span className="sr-only" role="alert">{status === 'error' ? 'Your last change was not saved. It is still on screen; choose Try Again.' : ''}</span>
     </>
   );
 }
 
 function ContactHead({ k, status, retry }) {
-  const { staffName } = useSession();
   const c = k.client;
   const title = c ? c.first + ' ' + c.last : k.identity === 'unverified' ? k.unverifiedName || 'Unverified client' : k.path === 'anon' ? 'Anonymous contact' + (k.anon.name ? ': ' + k.anon.name : '') : 'New contact';
   const idTag = c ? (k.identity === 'new' ? 'NEW IN MCI' : 'MATCHED IN MCI') : k.identity === 'unverified' ? 'UNVERIFIED' : 'ANONYMOUS';
@@ -72,24 +73,24 @@ function ContactHead({ k, status, retry }) {
         <div className="avatar">{c ? <span className="asc-initials">{initials(c)}</span> : <Icon name={channelIcon(k.channel)} size={24} />}</div>
         <div>
           <div className="client-name"><h1>{title}</h1></div>
-          <div className="tags">
-            <span className="tag">ASC</span>
-            <span className="tag is-quiet">{channelLabel(k.channel).toUpperCase()}</span>
-            <span className={'tag' + (c ? ' is-good' : ' is-quiet')}>{idTag}</span>
-            {k.onsite.idCheck && k.onsite.idCheck !== 'None shown' && <span className="tag is-good">ID CHECKED</span>}
-          </div>
+          <div className="tags"><span className={'tag' + (c ? ' is-good' : ' is-quiet')}>{idTag}</span></div>
         </div>
       </div>
       <dl className="ids">
         <div><dt>Event ID</dt><dd>{k.ref}</dd></div>
         <div><dt>{k.channel === 'person' ? 'Visit ID' : 'Call Log ID'}</dt><dd>{k.logId}</dd></div>
-        <div><dt>Started</dt><dd>{usDate(k.startedAt)}, {clockTime(k.startedAt)}</dd></div>
-        <div><dt>Coordinator</dt><dd>{staffName(k.staff)}</dd></div>
         {c && <div><dt>MCI ID</dt><dd>{c.mci}</dd></div>}
-        <div className="asc-save-cell"><SaveState status={status} retry={retry} /></div>
+        <SaveState status={status} retry={retry} />
       </dl>
     </section>
   );
+}
+
+// Shown once there's something to see: earlier contacts, or open items from them.
+function HistoryButton({ k, openModal }) {
+  const { history } = useContactHistory({ contactId: k.id });
+  if (!history.contacts.length && !history.openItems.length) return null;
+  return <button type="button" className="btn-ghost" onClick={() => openModal('ascHistory', { contactId: k.id })}><Icon name="history" />History</button>;
 }
 
 const VIEWS = { intake: IntakeStep, identify: IdentifyStep, interactions: InteractionsStep, 'wrap-up': WrapUpStep };
@@ -131,9 +132,10 @@ export function ContactPage({ route }) {
               ))}
             </nav>
           </div>
-          {k.status === 'closed' && route.step !== 'wrap-up' ? (
+          {k.correction && <CorrectionBar k={k} flush={editor.flush} />}
+          {k.status === 'closed' && !k.correction && route.step !== 'wrap-up' ? (
             <>
-              <p className="notice asc-locked-note"><Icon name="lock" size={18} /><span><strong>This contact is closed</strong> ({usDate(k.endedAt)}), so its answers can't be changed. Case notes and action items can still be added. [Corrections process TBD]</span></p>
+              <div className="notice asc-locked-note"><Icon name="lock" size={18} /><span><strong>This contact is closed</strong> ({usDate(k.endedAt)}). Case notes and action items can still be added. <EditClosed k={k} /></span></div>
               <fieldset className="asc-locked" disabled><legend className="sr-only">Closed contact, read only</legend>
                 <View k={k} edit={editor.edit} flush={editor.flush} openModal={openModal} next={null} />
               </fieldset>
@@ -149,9 +151,9 @@ export function ContactPage({ route }) {
     <div className="app"><div className="shell">
       <header className="topbar">
         <Link className="brand" to="#home"><BrandMark />CoLab</Link>
-        {k && <LiveChip k={k} />}
+        {k && <LiveChip k={k} edit={editor.edit} />}
         <nav className="top-actions" aria-label="Contact actions">
-          {k && <button type="button" className="btn-ghost" onClick={() => openModal('ascHistory', { contactId: k.id })}><Icon name="history" />Previous Interactions</button>}
+          {k && <HistoryButton k={k} openModal={openModal} />}
           {open && <button type="button" className="btn-ghost is-danger" onClick={() => openModal('ascUrgent', { contactId: k.id })}><Icon name="alert" />Urgent Routing</button>}
           <button type="button" className="btn-ghost" onClick={() => openModal('issue')}><Icon name="bug" />Report Issue</button>
           {k && k.client && <Link className="user-chip asc-chip-link" to={{ page: 'client', id: k.client.id, sub: 'tab', tab: 'asc' }}><Icon name="user" size={20} /><div><strong>{k.client.first} {k.client.last}</strong><span>MCI ID: {k.client.mci}</span></div></Link>}

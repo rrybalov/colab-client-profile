@@ -6,7 +6,7 @@ import { Modal, Loaded, Table, Field } from '../../ui/controls.jsx';
 import { usePref } from '../../state/store.jsx';
 import { useContactHistory, useContact, useAscMutations } from '../../state/asc.js';
 import { navigate } from '../../router.jsx';
-import { URGENT_DESTINATIONS, URGENT_HOWS, usDate, clockTime } from '../../data/asc.js';
+import { URGENT_DESTINATIONS, URGENT_HOWS, CRISIS, OPEN, usDate, clockTime, shown } from '../../data/asc.js';
 import { channelIcon, channelLabel, Badge } from './parts.jsx';
 
 const IX_SPEC = { grid: 'minmax(160px,2fr) minmax(120px,1.4fr) minmax(110px,1fr) 64px minmax(90px,1fr)', min: 620 };
@@ -39,8 +39,8 @@ function ContactEvent({ c, defaultOpen }) {
                 head={['Resource or hand-off', 'Type', 'How', 'Time', 'Place'].map((h) => <div className="th" role="columnheader" key={h}>{h}</div>)}>
                 {c.interactions.map((x) => (
                   <div className="tr is-row is-ruled" role="row" key={x.id}>
-                    <div className="td" role="cell">{x.what}</div><div className="td" role="cell">{x.type.replace(' [code TBD]', '')}</div>
-                    <div className="td" role="cell">{x.how}</div><div className="td" role="cell">{x.min} min</div><div className="td" role="cell">{x.place.replace(' [code TBD]', '')}</div>
+                    <div className="td" role="cell">{shown(x.what)}</div><div className="td" role="cell">{shown(x.type)}</div>
+                    <div className="td" role="cell">{shown(x.how)}</div><div className="td" role="cell">{x.min} min</div><div className="td" role="cell">{shown(x.place)}</div>
                   </div>
                 ))}
               </Table>
@@ -78,10 +78,10 @@ export function HistoryList({ q, empty }) {
 
 export function HistoryModal({ contactId, clientId, onClose }) {
   const { contact: k } = useContact(contactId || null);
-  const who = k ? (k.client ? k.client.first + ' ' + k.client.last : k.priorRefs.length ? 'Tied by reference number: ' + k.priorRefs.join(', ') : 'This contact is anonymous. Earlier contacts show once they give a reference number or are identified.') : '';
+  const who = k ? (k.client ? k.client.first + ' ' + k.client.last : k.priorRefs.length ? 'Tied by reference number: ' + k.priorRefs.join(', ') : 'Anonymous') : '';
   return (
-    <Modal id="asc-history" title="Previous Interactions" icon="history" intro={who} onClose={onClose}>
-      <HistoryList q={contactId ? { contactId } : { clientId }} empty={k && !k.clientId && !k.priorRefs.length ? 'No earlier contacts tied to this one yet. Use Returning Caller on the Intake step, or identify the person.' : undefined} />
+    <Modal id="asc-history" title="History" icon="history" intro={who} onClose={onClose}>
+      <HistoryList q={contactId ? { contactId } : { clientId }} empty={k && !k.clientId && !k.priorRefs.length ? 'No earlier contacts tied to this one yet.' : undefined} />
       <div className="modal-foot is-end"><button type="button" className="btn-primary" onClick={onClose}>Done</button></div>
     </Modal>
   );
@@ -104,14 +104,14 @@ export function UrgentModal({ contactId, need, onClose }) {
   };
   const others = k.needs.filter((n) => n.name !== which).map((n) => n.name);
   return (
-    <Modal id="asc-urgent" title="Urgent Routing" icon="alert" intro="Get them to the right place first. Logging takes seconds and can finish after the transfer." onClose={onClose}>
+    <Modal id="asc-urgent" title="Urgent Routing" icon="alert" intro="Transfer first. Log it after." onClose={onClose}>
       <form className="view" style={{ gap: 18 }} onSubmit={submit} noValidate>
         <fieldset className="asc-fieldset">
           <legend className="section-label">Where are they going?</legend>
           <div className="asc-dest">
             {URGENT_DESTINATIONS.map((x) => (
               <button key={x.id} type="button" className="asc-dest-card" aria-pressed={dest === x.id} onClick={() => setDest(x.id)} data-autofocus={dest === x.id ? '' : undefined}>
-                <strong>{dest === x.id && <Icon name="check" size={18} />}{x.label}</strong><span>{x.text}</span>
+                <strong>{dest === x.id && <Icon name="check" size={18} />}{x.label}</strong><span>{shown(x.text)}</span>
               </button>
             ))}
           </div>
@@ -122,13 +122,13 @@ export function UrgentModal({ contactId, need, onClose }) {
           <Field id="u-note" label="What happened (optional)" value={note} onChange={setNote} textarea wide />
         </div>
         <dl className="pairs is-small asc-urgent-record">
-          <dt>This need</dt><dd>Closes as <strong>Transferred to crisis</strong>: {d.label}, {clockTime(new Date().toISOString())}</dd>
-          <dt>Other needs</dt><dd>{others.length ? others.join(', ') + ': stay open for a follow-up' : 'None'}</dd>
+          <dt>This need</dt><dd>Closes as <strong>{CRISIS}</strong>: {d.label}, {clockTime(new Date().toISOString())}</dd>
+          <dt>Other needs</dt><dd>{others.length ? others.join(', ') + ': ' + OPEN.toLowerCase() : 'None'}</dd>
           <dt>The contact</dt><dd>{k.clientId ? 'Saved on ' + k.client.first + '’s record.' : 'Saved, still anonymous. It can be linked if they identify later.'}</dd>
         </dl>
         <div className="modal-foot">
-          <button type="button" className="btn-text" onClick={onClose}>Not Urgent After All</button>
-          <button type="submit" className="btn-primary is-danger" disabled={busy}>Log Transfer and Close Contact</button>
+          <button type="button" className="btn-text" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn-primary is-danger" disabled={busy}>Close as Transfer</button>
         </div>
       </form>
     </Modal>

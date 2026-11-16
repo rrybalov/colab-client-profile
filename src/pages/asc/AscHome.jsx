@@ -61,7 +61,7 @@ export function AscHome() {
       <div className="page-head"><h1 className="page-title"><Icon name="headset" size={28} />ASC Contacts</h1><SearchLaunch /></div>
       <section className="panel-card asc-launch" aria-labelledby="asc-start-h">
         <div className="card-head">
-          <div><h2 className="card-title" id="asc-start-h">Administrative Service Coordination</h2><p className="asc-hint">Start a contact when the phone rings or someone walks in. Everything stays anonymous until they share their information.</p></div>
+          <h2 className="card-title" id="asc-start-h">Administrative Service Coordination</h2>
           <StartButtons />
         </div>
       </section>

@@ -1,8 +1,8 @@
 // ASC server logic: contacts (calls and in-person visits), identifying and enrolling the client, the automatic
 // follow-ups, and contact history. Like backend.js, these run in the browser's sample-data source and in
 // tools/mock-api.mjs. docs/API.md describes the endpoints.
-import { NotFound, BadRequest, summary, fullRecord, newId, createNote } from './backend.js';
-import { followUpPlan, SCREENING, totals, plural, summaryNote, isSummaryNote } from './asc.js';
+import { NotFound, BadRequest, Forbidden, summary, fullRecord, newId, createNote } from './backend.js';
+import { followUpPlan, SCREENING, totals, plural, summaryNote, isSummaryNote, LEGACY, OPEN, CRISIS, SUPERVISOR } from './asc.js';
 import { ASC_ENROLLMENT } from './asc-seed.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -10,7 +10,26 @@ const usOf = (d) => pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + '/' + d.get
 const findContact = (db, id) => { const k = (db.contacts || []).find((x) => x.id === id); if (!k) throw new NotFound('Contact'); return k; };
 const findClient = (db, id) => { const c = db.clients.find((x) => x.id === id); if (!c) throw new NotFound('Client'); return c; };
 const clone = (v) => JSON.parse(JSON.stringify(v));
-const ensure = (db) => { if (!db.contacts) db.contacts = []; if (!db.contactSeq) db.contactSeq = 184; };
+const ensure = (db) => { if (!db.contacts) db.contacts = []; if (!db.contactSeq) db.contactSeq = 184; if (db.ascModel !== 2) migrate(db); };
+
+// v4.1 renamed outcomes, merged screening's "Not sure" and "Prefers not to say" into "Skip", shortened the safety
+// answer and added roles. Stored data is upgraded once, in place.
+const ROLES = { u1: 'ASC Coordinator', u2: 'ASC Coordinator', u6: 'ASC Coordinator', u4: SUPERVISOR };
+export const ascReady = (db) => ensure(db);
+function migrate(db) {
+  (db.contacts || []).forEach((k) => {
+    k.needs.forEach((n) => { if (LEGACY.outcome[n.outcome]) n.outcome = LEGACY.outcome[n.outcome]; });
+    if (k.intake && k.intake.safety in LEGACY.safety) k.intake.safety = LEGACY.safety[k.intake.safety];
+    Object.keys(k.screening || {}).forEach((q) => { if (LEGACY.screening[k.screening[q]]) k.screening[q] = LEGACY.screening[k.screening[q]]; });
+    if (!k.corrections) k.corrections = [];
+    if (k.correction === undefined) k.correction = null;
+  });
+  (db.staff || []).forEach((s) => { if (!s.role && ROLES[s.id]) s.role = ROLES[s.id]; });
+  db.ascModel = 2;
+}
+const me = (db) => (db.staff || []).find((s) => s.id === db.userId) || {};
+const isSupervisor = (db) => me(db).role === SUPERVISOR;
+const staffLabel = (db, id) => { const s = (db.staff || []).find((x) => x.id === id); return s ? s.first + ' ' + s.last : 'ASC'; };
 const clientName = (c) => (c ? c.first + ' ' + c.last : '');
 
 function contactSummary(db, k) {
@@ -61,7 +80,7 @@ export function createContact(db, body = {}) {
     intake: { safety: null, caller: null, callerOther: '', callerName: '', age: null, story: '', reason: null, reasonText: '', coverage: null, coverageDetail: '', found: null, foundOther: '', privacy: null, callerConfirmed: null, coverageConfirmed: null },
     screening: { mh: null, ph: null, house: null, food: null, su: null },
     needs: [], interactions: [], followUp: { ok: null, how: 'Phone call', time: '' }, onsite: { idCheck: null, consentSigned: '', docs: [] },
-    notes: [], actions: [], links: [], urgent: null, createdAt: new Date().toISOString()
+    notes: [], actions: [], links: [], urgent: null, correction: null, corrections: [], createdAt: new Date().toISOString()
   };
   if (body.clientId) {
     const c = findClient(db, body.clientId);
@@ -107,6 +126,8 @@ const LISTS = ['needs', 'interactions', 'notes', 'actions'];
 
 // What can still change once a contact is closed: case notes and action items (and their links).
 const AFTER_CLOSE = ['notes', 'actions', 'addLinks', 'removeLinks'];
+// What a supervisor can correct on a closed contact. Who the contact is (identity, links) stays as closed.
+const CORRECTABLE = ['intake', 'screening', 'needs', 'interactions', 'followUp', 'onsite', 'anon', 'site', 'channel', 'dropIxLinks'];
 const text = (v, max) => String(v == null ? '' : v).slice(0, max);
 const cleanSection = (v) => {
   const out = {};
@@ -122,8 +143,10 @@ export function updateContact(db, id, patch = {}) {
   ensure(db);
   const k = findContact(db, id);
   if (k.status === 'closed') {
-    const blocked = Object.keys(patch).filter((key) => AFTER_CLOSE.indexOf(key) < 0);
-    if (blocked.length) throw new BadRequest('This contact is closed. Only case notes and action items can be added.');
+    const allowed = k.correction ? AFTER_CLOSE.concat(CORRECTABLE) : AFTER_CLOSE;
+    const blocked = Object.keys(patch).filter((key) => allowed.indexOf(key) < 0);
+    if (blocked.length) throw new BadRequest(k.correction ? 'Who the contact is can’t change in a correction.' : 'This contact is closed. Only case notes and action items can be added.');
+    if (k.correction) Object.keys(patch).filter((key) => CORRECTABLE.indexOf(key) >= 0 && k.correction.changed.indexOf(key) < 0).forEach((key) => k.correction.changed.push(key));
   }
   SECTIONS.forEach((s) => { if (patch[s] && typeof patch[s] === 'object' && !Array.isArray(patch[s])) k[s] = { ...k[s], ...cleanSection(patch[s]) }; });
   LISTS.forEach((s) => {
@@ -249,7 +272,7 @@ export function closeContact(db, id, body = {}) {
   if (body.urgent) {
     const u = body.urgent;
     k.urgent = { dest: String(u.dest || ''), how: String(u.how || ''), need: String(u.need || ''), note: String(u.note || ''), at: new Date().toISOString() };
-    k.needs = k.needs.map((n) => ({ ...n, outcome: n.name === u.need ? 'Transferred to crisis' : (n.outcome || 'Keep open with a follow-up') }));
+    k.needs = k.needs.map((n) => ({ ...n, outcome: n.name === u.need ? CRISIS : (n.outcome || OPEN) }));
     k.closedKind = 'urgent';
   } else {
     if (!k.needs.length) throw new BadRequest('Add at least one need before closing.');
@@ -260,13 +283,57 @@ export function closeContact(db, id, body = {}) {
   k.status = 'closed';
   k.endedAt = new Date().toISOString();
   // The automatic summary: a case note on the client's record, or on the contact while the person is anonymous.
-  const staff = db.staff.find((s) => s.id === k.staff);
-  const author = staff ? staff.first + ' ' + staff.last : 'ASC';
-  const text = summaryNote(k, author);
-  const notes = [];
-  if (k.clientId) notes.push(createNote(db, k.clientId, { tag: 'ASC', author: k.staff, text }));
-  else k.notes.unshift({ id: newId('kn'), text, restricted: false, date: usOf(new Date(k.endedAt)), author: k.staff, edited: false });
+  const notes = [addNote(db, k, summaryNote(k, staffLabel(db, k.staff)), k.staff)].filter(Boolean);
   return { contact: full(db, k), notes };
+}
+
+// A case note from the system: on the client's record, or on the contact while the person is anonymous.
+function addNote(db, k, text, author) {
+  if (k.clientId) return createNote(db, k.clientId, { tag: 'ASC', author, text });
+  k.notes.unshift({ id: newId('kn'), text, restricted: false, date: usOf(new Date()), author, edited: false });
+  return null;
+}
+
+// Supervisors correct closed contacts. Opening a correction needs a reason; every change is saved as it's made,
+// and finishing records who changed what and why, as a case note and on the contact.
+export function startCorrection(db, id, body = {}) {
+  ensure(db);
+  const k = findContact(db, id);
+  if (!isSupervisor(db)) throw new Forbidden('Only an ASC supervisor can edit a closed contact.');
+  if (k.status !== 'closed') throw new BadRequest('This contact is still open. Edit it directly.');
+  if (k.correction) throw new BadRequest('This contact is already being corrected by ' + staffLabel(db, k.correction.by) + '.');
+  const reason = String(body.reason || '').trim().slice(0, 1000);
+  if (!reason) throw new BadRequest('Give a reason for the correction.');
+  k.correction = { by: db.userId, at: new Date().toISOString(), reason, changed: [] };
+  return { contact: full(db, k), notes: [] };
+}
+
+const FIELD_NAMES = { intake: 'intake', screening: 'screening', needs: 'needs and outcomes', interactions: 'interactions', followUp: 'follow-up', onsite: 'on-site steps', anon: 'anonymous details', site: 'site', channel: 'contact type', dropIxLinks: 'interactions' };
+export function finishCorrection(db, id) {
+  ensure(db);
+  const k = findContact(db, id);
+  if (!k.correction) throw new BadRequest('This contact isn’t being corrected.');
+  if (!isSupervisor(db)) throw new Forbidden('Only an ASC supervisor can edit a closed contact.');
+  if (!k.needs.length) throw new BadRequest('Add at least one need before saving.');
+  const open = k.needs.filter((n) => !n.outcome);
+  if (open.length) throw new BadRequest('Give each need an outcome before saving: ' + open.map((n) => n.name).join(', ') + '.');
+  const c = k.correction;
+  const changed = [...new Set(c.changed.map((f) => FIELD_NAMES[f] || f))];
+  const entry = { by: c.by, at: new Date().toISOString(), reason: c.reason, changed };
+  k.corrections.push(entry);
+  k.correction = null;
+  const text = 'ASC correction to ' + k.ref + ', ' + usOf(new Date(entry.at)) + ', ' + staffLabel(db, entry.by) + '.\nReason: ' + entry.reason + '\nChanged: ' + (changed.length ? changed.join(', ') : 'nothing') + '.\n\n' + summaryNote(k, staffLabel(db, k.staff));
+  const notes = [addNote(db, k, text, entry.by)].filter(Boolean);
+  return { contact: full(db, k), notes };
+}
+
+// Prototype only: switch between a coordinator and a supervisor to try both roles.
+export const DEMO_USERS = ['u1', 'u4'];
+export function switchUser(db, body = {}) {
+  ensure(db);
+  if (DEMO_USERS.indexOf(body.userId) < 0) throw new BadRequest('Unknown user.');
+  db.userId = body.userId;
+  return { ok: true };
 }
 
 // Everything a coordinator needs when a person comes back: what is still open, then each past contact.
@@ -287,7 +354,7 @@ export function contactHistory(db, q = {}) {
   related.forEach((x) => x.needs.forEach((n) => {
     if (seenNeeds.has(n.name)) return;
     seenNeeds.add(n.name);
-    if (n.outcome === 'Keep open with a follow-up') open.push({ kind: 'Open need', text: n.name, meta: n.urg + ' · open since ' + usOf(new Date(x.startedAt)) + ' · ' + staffName(x.staff) });
+    if (n.outcome === OPEN) open.push({ kind: 'Open need', text: n.name, meta: n.urg + ' · open since ' + usOf(new Date(x.startedAt)) + ' · ' + staffName(x.staff) });
   }));
   related.forEach((x) => x.actions.filter((a) => !a.done).forEach((a) => open.push({ kind: 'Action item', text: a.text, meta: staffName(a.assignee) + ' · due ' + (a.due ? a.due.slice(5, 7) + '/' + a.due.slice(8, 10) + '/' + a.due.slice(0, 4) : 'no date') + ' · from ' + x.ref })));
   if (clientId) db.actions.filter((a) => a.clientId === clientId && a.tag === 'ASC' && !a.done).forEach((a) => open.push({ kind: 'Action item', text: a.text, meta: staffName(a.assignee) + ' · due ' + (a.due ? a.due.slice(5, 7) + '/' + a.due.slice(8, 10) + '/' + a.due.slice(0, 4) : 'no date') }));

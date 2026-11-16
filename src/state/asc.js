@@ -75,7 +75,10 @@ export function useAscMutations() {
   // Closing also saves the automatic summary as a case note, which comes back with the closed contact.
   const closeContact = useCallback((k, body) => source.closeContact(k.id, body).then((r) => apply(r).contact, fail), [source, apply, fail]);
   const lookupContact = useCallback((ref) => source.lookupContact(ref), [source]);
-  return { createContact, updateContact, linkContact, closeContact, lookupContact };
+  // Supervisors only: correct a closed contact, with a reason, then save it (which writes a correction note).
+  const startCorrection = useCallback((k, reason) => source.startCorrection(k.id, { reason }).then((r) => apply(r).contact, fail), [source, apply, fail]);
+  const finishCorrection = useCallback((k) => source.finishCorrection(k.id).then((r) => apply(r).contact, fail), [source, apply, fail]);
+  return { createContact, updateContact, linkContact, closeContact, lookupContact, startCorrection, finishCorrection };
 }
 
 // Editing a contact. Text fields save after a short pause; choices save at once. `view` is the contact with any

@@ -2,21 +2,21 @@
 // in MCI and enroll them in ASC. The contact's notes, action items and time move to their record.
 import React, { useState } from 'react';
 import { Icon } from '../../ui/icons.jsx';
-import { Field, Segmented } from '../../ui/controls.jsx';
+import { Field } from '../../ui/controls.jsx';
 import { useClient, useSearch } from '../../state/data.js';
 import { useAscMutations } from '../../state/asc.js';
 import { useApi } from '../../state/store.jsx';
 import { Link, navigate } from '../../router.jsx';
 import { dobText } from '../../lib.js';
 import { usDate } from '../../data/asc.js';
-import { useMountFocus } from './parts.jsx';
+import { useMountFocus, StepHeading } from './parts.jsx';
 import { MatchCard } from './Intake.jsx';
 
 const go = (k, step) => navigate({ page: 'contact', id: k.id, step });
 const BLANK = { first: '', last: '', dob: '', zip: '', ssn: '' };
 
+// One search: name and date of birth, with ZIP and the last 4 of their SSN when they'll share them.
 function Search({ k, edit, onNew, onUnverified }) {
-  const [mode, setMode] = useState('simple');
   const [form, setForm] = useState(BLANK);
   const [run, setRun] = useState(null);
   const [error, setError] = useState('');
@@ -26,29 +26,23 @@ function Search({ k, edit, onNew, onUnverified }) {
     e.preventDefault();
     if (!form.first.trim() && !form.last.trim() && !form.dob) { setError('Enter a name or date of birth to search.'); return; }
     setError('');
-    setRun({ first: form.first, last: form.last, dob: form.dob, ...(mode === 'advanced' ? { zip: form.zip, ssn: form.ssn } : {}) });
+    setRun({ first: form.first, last: form.last, dob: form.dob, zip: form.zip, ssn: form.ssn });
   };
-  const looser = (patch) => { const f = { ...form, ...patch }; setForm(f); setRun({ first: f.first, last: f.last, dob: f.dob }); };
+  const lastOnly = () => { const f = { ...BLANK, last: form.last }; setForm(f); setRun({ last: f.last }); };
   return (
     <form className="asc-card is-primary" onSubmit={submit} noValidate aria-labelledby="h-lookup">
       <div className="asc-card-head">
-        <h3 className="section-label" id="h-lookup"><Icon name="search" size={18} />Look up the client</h3>
-        <Segmented small label="Search type" value={mode} onChange={setMode} options={[{ id: 'simple', label: 'Simple Search' }, { id: 'advanced', label: 'Advanced Search' }]} />
+        <h3 className="section-label" id="h-lookup"><Icon name="search" size={18} />Look them up</h3>
       </div>
       <div className="form-grid is-3">
         <Field id="i-first" label="First name" value={form.first} onChange={set('first')} autoComplete="off" />
         <Field id="i-last" label="Last name" value={form.last} onChange={set('last')} autoComplete="off" />
         <Field id="i-dob" label="Date of birth" value={form.dob} onChange={set('dob')} type="date" />
+        <Field id="i-zip" label="ZIP (optional)" value={form.zip} onChange={set('zip')} inputMode="numeric" maxLength={5} autoComplete="off" />
+        <Field id="i-ssn" label="SSN, last 4 (optional)" value={form.ssn} onChange={set('ssn')} inputMode="numeric" maxLength={4} autoComplete="off" />
       </div>
-      {mode === 'advanced' && (
-        <div className="form-grid is-3">
-          <Field id="i-zip" label="ZIP" value={form.zip} onChange={set('zip')} inputMode="numeric" maxLength={5} autoComplete="off" />
-          <Field id="i-ssn" label="SSN, last 4" value={form.ssn} onChange={set('ssn')} inputMode="numeric" maxLength={4} autoComplete="off" />
-        </div>
-      )}
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="asc-inline-row is-end">
-        <span className="asc-hint">{mode === 'advanced' ? 'Add ZIP or the last 4 of their SSN when they’ll share it.' : 'First name, last name and date of birth.'}</span>
         <button type="submit" className="btn-primary">Search MCI</button>
       </div>
       {run && (
@@ -67,15 +61,11 @@ function Search({ k, edit, onNew, onUnverified }) {
             </>
           ) : (
             <div className="asc-nomatch">
-              <p><strong>No match in MCI.</strong> Try a looser search before adding someone new:</p>
-              <div className="opts">
-                {form.first && <button type="button" className="opt" onClick={() => looser({ first: '' })}>Last name and date of birth only</button>}
-                {form.dob && <button type="button" className="opt" onClick={() => looser({ dob: '' })}>Without the date of birth</button>}
-                {form.last && form.first && <button type="button" className="opt" onClick={() => looser({ last: '' })}>First name only</button>}
-              </div>
+              <p><strong>No match in MCI.</strong></p>
               <div className="asc-inline-row is-end">
-                <button type="button" className="btn-outline" onClick={() => onUnverified([form.first, form.last].filter(Boolean).join(' '))}>Keep Unverified for Now</button>
-                <button type="button" className="btn-primary" onClick={() => onNew(form)}>Create New Client</button>
+                {form.last && (form.first || form.dob || form.zip || form.ssn) && <button type="button" className="btn-text" onClick={lastOnly}>Search Last Name Only</button>}
+                <button type="button" className="btn-outline" onClick={() => onUnverified([form.first, form.last].filter(Boolean).join(' '))}>Save Name Only</button>
+                <button type="button" className="btn-primary" onClick={() => onNew(form)}>Register New Client</button>
               </div>
             </div>
           )}
@@ -111,13 +101,12 @@ function NewClient({ k, start, cancel }) {
   };
   return (
     <form className="asc-card is-primary" onSubmit={submit} noValidate aria-labelledby="h-new">
-      <div className="asc-card-head"><h3 className="section-label" id="h-new" tabIndex={-1} ref={head}><Icon name="plusCircle" size={18} />New client: register in MCI and enroll in ASC</h3><button type="button" className="btn-text" onClick={cancel}>Back to Search</button></div>
-      <p className="asc-hint">Fields marked Required go to the state. Ask the rest only if they're comfortable.</p>
+      <div className="asc-card-head"><h3 className="section-label" id="h-new" tabIndex={-1} ref={head}><Icon name="plusCircle" size={18} />New client</h3><button type="button" className="btn-text" onClick={cancel}>Back to Search</button></div>
       <div className="form-grid">
         <Field id="n-last" label="Last name" value={f.last} onChange={set('last')} required autoComplete="off" aria-invalid={bad('last')} aria-describedby={bad('last') ? 'n-err' : undefined} />
         <Field id="n-first" label="First name" value={f.first} onChange={set('first')} required autoComplete="off" aria-invalid={bad('first')} aria-describedby={bad('first') ? 'n-err' : undefined} />
         <div className="field"><div className="field-top"><label htmlFor="n-gender">Gender</label><span className="req">Required</span></div>
-          <select className="select" id="n-gender" aria-invalid={bad('gender')} aria-describedby={bad('gender') ? 'n-err' : undefined} value={f.gender} onChange={(e) => set('gender')(e.target.value)}><option value="">Choose one</option><option>Female</option><option>Male</option><option>Nonbinary</option><option>[state code set]</option></select></div>
+          <select className="select" id="n-gender" aria-invalid={bad('gender')} aria-describedby={bad('gender') ? 'n-err' : undefined} value={f.gender} onChange={(e) => set('gender')(e.target.value)}><option value="">Choose one</option><option>Female</option><option>Male</option><option>Nonbinary</option></select></div>
         <Field id="n-dob" label="Date of birth" value={iso(f.dob)} onChange={set('dob')} type="date" required aria-invalid={bad('dob')} aria-describedby={bad('dob') ? 'n-err' : undefined} />
         <Field id="n-ssn" label="SSN" value={f.ssn} onChange={set('ssn')} inputMode="numeric" placeholder="Only if they're comfortable" autoComplete="off" />
         <Field id="n-phone" label="Phone" value={f.phone} onChange={set('phone')} type="tel" autoComplete="off" />
@@ -144,7 +133,7 @@ function Confirm({ k, edit }) {
   const { toast } = useApi();
   const [busy, setBusy] = useState(false);
   const head = useMountFocus();
-  if (!c) return <MatchCard k={k} edit={edit} />;
+  if (!c) return <MatchCard k={k} />;
   const enroll = () => {
     setBusy(true);
     linkContact(k, { clientId: c.id }).then((r) => { toast(r.client.first + ' ' + r.client.last + ' enrolled in ASC'); go(k, 'interactions'); }, () => setBusy(false));
@@ -166,10 +155,10 @@ function Confirm({ k, edit }) {
         {c.guardian && <div><dt>Guardian</dt><dd>{c.guardian.name}, {c.guardian.relationship.toLowerCase()} · {c.guardian.phone}</dd></div>}
         {c.coverage && <div><dt>Coverage on file</dt><dd>{c.coverage.plan} · {c.coverage.status} as of {c.coverage.asOf}</dd></div>}
       </dl>
-      {missing.length > 0 && <p className="notice is-warn"><Icon name="alert" size={18} /><span><strong>Not on file for the state yet:</strong> {missing.map((m) => m[0].toLowerCase()).join(' and ')}. Ask only if they're comfortable; it can wait for a later contact.</span></p>}
+      {missing.length > 0 && <p className="notice is-warn"><Icon name="alert" size={18} /><span><strong>Missing for the state:</strong> {missing.map((m) => m[0].toLowerCase()).join(' and ')}. Ask only if they're comfortable.</span></p>}
       <div className="asc-enroll">
-        <div><strong>Enroll in Administrative Service Coordination</strong><span>Start date today · this contact's needs, notes and time move to {c.first}'s record</span></div>
-        <button type="button" className="btn-primary" onClick={enroll} disabled={busy || query.status === 'loading'}>{c.colabs.indexOf('ASC') >= 0 ? 'Add to Their Record' : 'Enroll and Continue'}</button>
+        <div><strong>{c.colabs.indexOf('ASC') >= 0 ? 'Already in ASC' : 'Enroll in ASC'}</strong><span>This contact moves to {c.first}'s record.</span></div>
+        <button type="button" className="btn-primary" onClick={enroll} disabled={busy || query.status === 'loading'}>{c.colabs.indexOf('ASC') >= 0 ? 'Add to Record' : 'Enroll'}</button>
       </div>
     </section>
   );
@@ -185,7 +174,7 @@ function Identified({ k, edit, next }) {
           <h3 className="section-label" id="h-identified" tabIndex={-1} ref={head}><Icon name="check" size={18} />{c.first} {c.last} is on this contact</h3>
           <Link className="link-btn is-inline" to={{ page: 'client', id: c.id, sub: 'tab', tab: 'asc' }}><Icon name="external" size={14} />Open Client Profile</Link>
         </div>
-        <p>{k.identity === 'new' ? 'Registered in MCI and enrolled in ASC today.' : 'Matched in MCI and enrolled in ASC.'} Notes, action items and interactions from this contact are on {c.first}'s record.</p>
+        <p>{k.identity === 'new' ? 'Registered in MCI and enrolled in ASC.' : 'Matched in MCI and enrolled in ASC.'}</p>
       </section>
       {k.possibleLinks.length > 0 && (
         <section className="asc-card is-warn" aria-labelledby="h-links">
@@ -213,9 +202,9 @@ function Anonymous({ k, edit, next }) {
       <section className="asc-card" aria-labelledby="h-anon">
         <div className="asc-card-head">
           <h3 className="section-label" id="h-anon" tabIndex={-1} ref={head}><Icon name="user" size={18} />Anonymous record</h3>
-          <button type="button" className="btn-text" onClick={() => edit({ path: null }, { now: true })}>They'll share info instead</button>
+          <button type="button" className="btn-text" onClick={() => edit({ path: null }, { now: true })}>Look Them Up</button>
         </div>
-        <p className="asc-hint">All optional. No last name, date of birth, phone or address in an anonymous record.</p>
+        <p className="asc-hint">All optional. No last name, birth date, phone or address.</p>
         <div className="form-grid">
           <Field id="a-name" label="First name or nickname" value={k.anon.name} onChange={set('name')} autoComplete="off" />
           <Field id="a-zip" label="ZIP" value={k.anon.zip} onChange={set('zip')} inputMode="numeric" maxLength={5} autoComplete="off" />
@@ -233,13 +222,13 @@ export function IdentifyStep({ k, edit, next }) {
   const [newFrom, setNewFrom] = useState(null);
   return (
     <div className="view asc-view">
-      <div className="view-head"><h2 className="title"><Icon name="idCard" size={24} />Identify</h2></div>
+      <StepHeading>Identify</StepHeading>
       {k.clientId ? <Identified k={k} edit={edit} next={next} />
         : k.identity === 'unverified' ? (
           <section className="asc-card is-warn" aria-labelledby="h-unv">
             <h3 className="section-label" id="h-unv"><Icon name="alert" size={18} />Saved with name only: {k.unverifiedName || 'no name'}</h3>
-            <p>Not enrolled until verified. Interactions count in ASC reports but aren't sent to the state.</p>
-            <div className="asc-inline-row"><button type="button" className="btn-outline" onClick={() => edit({ identity: null, path: 'client' }, { now: true })}>Search MCI Again</button>
+            <p>Not sent to the state until verified.</p>
+            <div className="asc-inline-row"><button type="button" className="btn-outline" onClick={() => edit({ identity: null, path: 'client' }, { now: true })}>Search Again</button>
               {next && <button type="button" className="btn-primary is-icon" onClick={() => go(k, next[0])}>Next: {next[1]}<Icon name="arrowRight" /></button>}</div>
           </section>
         ) : k.path === 'anon' ? <Anonymous k={k} edit={edit} next={next} />
@@ -247,13 +236,12 @@ export function IdentifyStep({ k, edit, next }) {
             : k.candidateId ? <Confirm k={k} edit={edit} />
               : (
                 <>
-                  <div className="notice"><Icon name="info" size={18} /><p><strong>You might say:</strong> “Sharing your information lets us get you more direct help, and we can even refer you to care {k.channel === 'person' ? 'today' : 'during this call'}. If you'd rather stay anonymous, we can give you information to reach out for care yourself.”</p></div>
                   <div className="asc-choose">
                     <section className="asc-card" aria-labelledby="h-stay">
                       <h3 className="section-label" id="h-stay"><Icon name="user" size={18} />Stay anonymous</h3>
-                      <p>Give information and resources today. Nothing identifies them, and they can {k.channel === 'person' ? 'come back' : 'call back'} any time.</p>
+                      <p>Give information and resources. Nothing identifies them.</p>
                       <div className="asc-ref"><span>Their reference number</span><strong className="mono">{k.ref}</strong></div>
-                      <button type="button" className="btn-outline" onClick={() => edit({ path: 'anon' }, { now: true })}>Continue Anonymously</button>
+                      <button type="button" className="btn-outline" onClick={() => edit({ path: 'anon' }, { now: true })}>Stay Anonymous</button>
                     </section>
                     <Search k={k} edit={edit} onNew={setNewFrom} onUnverified={(name) => edit({ identity: 'unverified', unverifiedName: name }, { now: true })} />
                   </div>

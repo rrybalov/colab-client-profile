@@ -205,5 +205,5 @@ export function useMutations() {
   const submitReport = useCallback((body) => source.submitReport(body), [source]);
   const revealSsn = useCallback((id) => source.revealSsn(id), [source]);
 
-  return { setStar, toggleAction, createAction, updateAction, deleteAction, createNote, updateNote, deleteNote, submitReport, revealSsn, reset: api.reset };
+  return { setStar, toggleAction, createAction, updateAction, deleteAction, createNote, updateNote, deleteNote, submitReport, revealSsn, reset: api.reset, switchUser: api.switchUser };
 }

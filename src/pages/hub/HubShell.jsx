@@ -40,6 +40,22 @@ function ResetData() {
   );
 }
 
+// Prototype only: try ASC as a coordinator or as a supervisor (who can edit closed contacts).
+export function SwitchUser({ compact }) {
+  const { user, staff, switchUsers } = useSession();
+  const { switchUser } = useMutations();
+  if (!switchUsers || switchUsers.length < 2) return null;
+  const people = switchUsers.map((id) => staff.find((s) => s.id === id)).filter(Boolean);
+  return (
+    <div className={'switch-user' + (compact ? ' is-compact' : '')}>
+      <label htmlFor={compact ? 'switch-user-c' : 'switch-user'}>Demo: sign in as</label>
+      <select className="side-select" id={compact ? 'switch-user-c' : 'switch-user'} value={user.id} onChange={(e) => switchUser(e.target.value)}>
+        {people.map((s) => <option key={s.id} value={s.id}>{s.first} {s.last}{s.role ? ', ' + s.role.replace('ASC ', '').toLowerCase() : ''}</option>)}
+      </select>
+    </div>
+  );
+}
+
 const LINKS = [['home', 'home', 'CoLab Home'], ['my-action-items', 'inbox', 'My Action Items'], ['my-case-notes', 'notes', 'My Case Notes'], ['starred-clients', 'star', 'Starred Clients']];
 
 export function HubShell({ page, children }) {
@@ -62,7 +78,8 @@ export function HubShell({ page, children }) {
         {(colab === 'ASC' || page === 'asc') && (
           <Link className="side-link side-asc" to="#asc" aria-current={page === 'asc' ? 'page' : undefined}><Icon name="headset" size={18} />ASC Contacts</Link>
         )}
-        <div className="side-user"><span className="avatar-sm">{user.initials}</span><div><strong>{user.first} {user.last}</strong><span>{user.org}</span></div></div>
+        <div className="side-user"><span className="avatar-sm">{user.initials}</span><div><strong>{user.first} {user.last}</strong><span>{user.role || user.org}</span></div></div>
+        <SwitchUser />
         <button type="button" className="side-link side-report" onClick={() => openModal('issue')}><Icon name="wrench" size={16} />Report an Issue</button>
         {canReset && <ResetData />}
       </nav>

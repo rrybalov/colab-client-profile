@@ -1030,3 +1030,30 @@ span.src-tag { cursor: default; }
 .td small.asc-cell-icon { display: flex; gap: 5px; margin-top: 2px; }
 /* Every client tab, ASC included, fits a laptop screen with the panel open. */
 @media (max-width: 1280px) { .tabs { gap: 2px; } .tab { padding-inline: 8px; } }
+
+/* ---------- Simplified (v4.1) ---------- */
+.asc-step-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px; min-height: 24px; }
+.asc-match.is-line { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 16px; }
+.asc-match.is-line h3 { font-size: 17px; font-weight: 600; color: var(--black); }
+.asc-match.is-line > span:last-child { font-size: 13px; color: var(--slate); font-variant-numeric: tabular-nums; }
+.asc-lookup-grid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.asc-min-row { display: flex; align-items: center; gap: 10px; }
+.asc-min-row .input { flex: 1 1 80px; min-width: 0; }
+.asc-min-row .asc-units { flex: 0 0 auto; min-height: 40px; font-size: 13px; font-weight: 600; background: none; padding: 0; color: var(--slate); }
+.asc-live-change { margin-left: 4px; }
+.asc-correcting { align-items: center; }
+.asc-correcting > span { flex: 1 1 300px; }
+.asc-correct-form { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 520px; margin-top: 10px; }
+.asc-locked-note .btn-outline { margin-left: 6px; }
+.asc-corrections { display: flex; flex-direction: column; gap: 6px; max-width: 560px; margin: 0 auto; font-size: 13px; color: var(--black); }
+.asc-corrections li { padding: 8px 12px; border-radius: var(--radius); background: var(--smoke); }
+.asc-sent { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.asc-sent .chev { transition: transform .15s; }
+.asc-sent .chev.is-open { transform: rotate(180deg); }
+.asc-inline-row.is-center { justify-content: center; align-items: center; }
+.asc-summary li.is-warn .icon { color: var(--red-text); }
+.switch-user { display: flex; flex-direction: column; gap: 4px; padding: 0 2px 6px; }
+.switch-user label { font-size: 11px; font-weight: 600; color: var(--slate); }
+.asc-match.is-line .asc-avatar { width: 36px; height: 36px; font-size: 14px; }
+/* The step tabs already draw a line, so the first section after them doesn't draw another. */
+.asc-view > :is(h2.sr-only, .asc-step-actions) + .asc-section { border-top: 0; padding-top: 4px; }

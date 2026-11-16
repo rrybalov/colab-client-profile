@@ -8,7 +8,7 @@ import { navigate } from '../../router.jsx';
 import { Loaded } from '../../ui/controls.jsx';
 import { ASC_ENROLLMENT } from '../../data/asc-seed.js';
 import { usDate } from '../../data/asc.js';
-import { ScreeningSummary, Badge } from './parts.jsx';
+import { ScreeningSummary } from './parts.jsx';
 import { HistoryList } from './History.jsx';
 
 export function AscTab({ client: c }) {
@@ -37,13 +37,9 @@ export function AscTab({ client: c }) {
       </div>
       <Loaded query={query} what="ASC contacts">{() => {
         const latest = contacts[0];
-        const needs = [];
-        const seen = new Set();
-        contacts.forEach((k) => k.needs.forEach((n) => { if (!seen.has(n.name)) { seen.add(n.name); needs.push({ ...n, ref: k.ref, date: k.startedAt }); } }));
-        const open = needs.filter((n) => n.outcome === 'Keep open with a follow-up' || !n.outcome);
         return (
           <>
-            <div className="card-grid">
+            <div className="card-grid is-one">
               <div className="info-card">
                 <h3 className="asc-card-title"><Icon name="check" size={18} />Enrollment</h3>
                 <dl className="pairs is-small">
@@ -53,17 +49,13 @@ export function AscTab({ client: c }) {
                   <dt>Last contact</dt><dd>{latest ? usDate(latest.startedAt) + ' · ' + staffName(latest.staff) : '—'}</dd>
                 </dl>
               </div>
-              <div className="info-card">
-                <h3 className="asc-card-title"><Icon name="layers" size={18} />Open needs</h3>
-                {open.length ? <ul>{open.map((n) => <li key={n.name}><Badge urg={n.urg} /> {n.name}</li>)}</ul> : <p className="asc-hint">None open.</p>}
-              </div>
             </div>
             {latest && <LatestScreening contactId={latest.id} />}
           </>
         );
       }}</Loaded>
       <section aria-labelledby="h-asc-hist" className="asc-section">
-        <h3 className="subtitle" id="h-asc-hist">Previous interactions</h3>
+        <h3 className="subtitle" id="h-asc-hist">History</h3>
         <HistoryList q={{ clientId: c.id }} empty={'No ASC contacts for ' + c.first + ' yet.'} />
       </section>
     </div>

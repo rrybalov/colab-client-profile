@@ -6,165 +6,125 @@ import { useClient, useSearch } from '../../state/data.js';
 import { useAscMutations } from '../../state/asc.js';
 import { navigate } from '../../router.jsx';
 import {
-  SAFETY, CALLERS, AGES, REASONS, COVERAGE, FOUND, PRIVACY, URGENCY, NEED_OPTIONS, SCREENING,
-  needForScreen, isConcern, intakeGaps, defaultPlace, PLACES, usDate
+  SAFETY, CALLERS, AGES, COVERAGE, FOUND, PRIVACY, URGENCY, NEED_OPTIONS, SCREENING, SITES,
+  needForScreen, isConcern, usDate
 } from '../../data/asc.js';
-import { Options, Section, initials, focusLater, removeWithUndo, useMountFocus } from './parts.jsx';
+import { Options, Section, StepHeading, initials, focusLater, removeWithUndo, useMountFocus } from './parts.jsx';
 import { useApi } from '../../state/store.jsx';
 import { dobText } from '../../lib.js';
 
-const SITES = ['Mercy Behavioral Health', 'Steel Valley Recovery Center', 'Northside Community Health Clinic'];
 let needSeq = 0;
 export const newNeed = (name, urg = 'Routine') => ({ id: 'n' + Date.now().toString(36) + (needSeq++), name, urg, outcome: '', outcomeNote: '' });
 
-function ContactType({ k, edit }) {
-  const setChannel = (v) => {
-    // Interactions logged as Telephone become Office in person, and back.
-    const swap = { [PLACES[0]]: defaultPlace(v), [PLACES[1]]: defaultPlace(v) };
-    edit({ channel: v, site: v === 'person' ? k.site || SITES[0] : '', interactions: k.interactions.map((x) => ({ ...x, place: swap[x.place] || x.place })) }, { now: true });
-  };
+// In person only: which site, and whether the space is private enough for the safety and screening questions.
+function Where({ k, edit }) {
+  if (k.channel !== 'person') return null;
   return (
-    <Section id="h-type" title="How they reached us" icon="headset" className="is-compact"
-      aside={<Segmented label="Contact type" value={k.channel} onChange={setChannel} options={[{ id: 'phone', label: 'Phone Call', icon: 'phone' }, { id: 'person', label: 'In Person', icon: 'door' }]} />}>
-      {k.channel === 'person' && (
-        <div className="asc-sub">
-          <div className="form-grid is-2">
-            <div className="field">
-              <label htmlFor="asc-site">Site</label>
-              <select className="select" id="asc-site" value={k.site} onChange={(e) => edit({ site: e.target.value }, { now: true })}>
-                {SITES.map((s) => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-          <p className="field-label" id="h-privacy">Where are you talking?</p>
-          <Options labelId="h-privacy" value={k.intake.privacy} options={PRIVACY} onChange={(v) => edit({ intake: { privacy: v } }, { now: true })} concern={[PRIVACY[1]]} />
-          {k.intake.privacy === PRIVACY[1] && <p className="notice is-warn" role="note"><Icon name="alert" size={18} /><span>Move somewhere private before the safety and screening questions, or skip them for now and ask before they leave.</span></p>}
+    <Section id="h-where" title="Where you're meeting" icon="door" className="is-compact">
+      <div className="form-grid is-2">
+        <div className="field">
+          <label htmlFor="asc-site">Site</label>
+          <select className="select" id="asc-site" value={k.site} onChange={(e) => edit({ site: e.target.value }, { now: true })}>
+            {SITES.map((x) => <option key={x}>{x}</option>)}
+          </select>
         </div>
-      )}
+      </div>
+      <p className="field-label" id="h-privacy">Where are you talking?</p>
+      <Options labelId="h-privacy" value={k.intake.privacy} options={PRIVACY} onChange={(v) => edit({ intake: { privacy: v } }, { now: true })} concern={[PRIVACY[1]]} />
+      {k.intake.privacy === PRIVACY[1] && <p className="notice is-warn" role="note"><Icon name="alert" size={18} /><span>Move somewhere private before the safety and screening questions, or ask them before they leave.</span></p>}
     </Section>
   );
 }
 
 function Safety({ k, edit, openModal }) {
-  const urgent = () => { edit({ intake: { safety: 'Yes: routed to crisis' } }, { now: true }); openModal('ascUrgent', { contactId: k.id }); };
+  const urgent = () => { edit({ intake: { safety: 'Yes' } }, { now: true }); openModal('ascUrgent', { contactId: k.id }); };
   return (
     <section className="asc-safety" aria-labelledby="h-safety">
       <div className="asc-safety-top">
-        <div><h3 className="section-label" id="h-safety"><Icon name="shield" size={18} />Safety</h3><p>Is anyone in immediate danger, or thinking about hurting themselves?</p></div>
+        <div><h3 className="section-label" id="h-safety"><Icon name="shield" size={18} />Safety</h3><p id="q-safety">Is anyone in immediate danger, or thinking about hurting themselves?</p></div>
         <div className="asc-safety-opts">
-          <Options label="Safety answer" value={k.intake.safety} options={SAFETY} onChange={(v) => edit({ intake: { safety: v } }, { now: true })} />
-          <button type="button" className="opt is-danger" onClick={urgent}><Icon name="alert" size={14} />Yes: start urgent routing</button>
+          <Options labelId="q-safety" value={k.intake.safety === 'No' ? 'No' : null} options={SAFETY} onChange={(v) => edit({ intake: { safety: v } }, { now: true })} />
+          <button type="button" className="opt is-danger" aria-pressed={k.intake.safety === 'Yes'} onClick={urgent}><Icon name="alert" size={14} />Yes</button>
         </div>
       </div>
-      <p className="asc-safety-lines">If anyone is in danger right now: <strong>911</strong> · <strong>988</strong> Suicide and Crisis Lifeline · <strong>resolve Crisis Services</strong> [confirm number]</p>
+      <p className="asc-safety-lines">If anyone is in danger right now: <strong>911</strong> · <strong>988</strong> Suicide and Crisis Lifeline · <strong>resolve Crisis Services</strong></p>
     </section>
   );
 }
 
-function ReturningCaller({ k, edit, openModal, close }) {
+// One way to find a caller: the reference number from an earlier contact, or their name and date of birth.
+function LookUp({ k, edit, openModal, close }) {
   const { lookupContact } = useAscMutations();
-  const [ref, setRef] = useState('');
-  const [state, setState] = useState({ busy: false, error: '', found: null });
-  const find = (e) => {
-    e.preventDefault();
-    if (!ref.trim()) { setState({ busy: false, error: 'Enter the reference number from their last contact.', found: null }); return; }
-    setState({ busy: true, error: '', found: null });
-    lookupContact(ref.trim()).then((found) => setState({ busy: false, error: '', found }), () => setState({ busy: false, error: 'No contact has that reference number. Check it with the caller, or keep going: the intake works without it.', found: null }));
-  };
-  const attach = () => edit({ priorRef: state.found.ref }, { now: true }).then(() => { close(true); openModal('ascHistory', { contactId: k.id }); });
-  return (
-    <form className="asc-inline" onSubmit={find} noValidate aria-labelledby="h-return">
-      <h3 id="h-return">Find their earlier contacts</h3>
-      <p className="asc-hint">Ask for the reference number from their last contact. It starts with EV.</p>
-      <div className="asc-inline-row">
-        <Field id="asc-ref" label="Reference number" autoFocus value={ref} onChange={(v) => { setRef(v); if (state.error) setState({ ...state, error: '' }); }} placeholder="EV-26-000142" autoComplete="off" aria-invalid={!!state.error} aria-describedby={state.error ? 'asc-ref-err' : undefined} />
-        <button type="submit" className="btn-primary" disabled={state.busy}>Find</button>
-        <button type="button" className="btn-text" onClick={() => close()}>Cancel</button>
-      </div>
-      {state.error && <p className="field-error" id="asc-ref-err" role="alert">{state.error}</p>}
-      {state.found && (
-        <div className="asc-found" role="status">
-          <span><strong>{state.found.ref}</strong> · {usDate(state.found.startedAt)} · {state.found.clientName || 'Anonymous' + (state.found.anonName ? ': ' + state.found.anonName : '')} · {state.found.needs.map((n) => n.name).join(', ')}</span>
-          <button type="button" className="btn-outline" onClick={attach}><Icon name="history" />Add to This Contact and View History</button>
-        </div>
-      )}
-    </form>
-  );
-}
-
-function QuickIdentify({ k, edit, close }) {
-  const [form, setForm] = useState({ first: '', last: '', dob: '' });
+  const [form, setForm] = useState({ ref: '', first: '', last: '', dob: '' });
+  const [byRef, setByRef] = useState({ busy: false, found: null });
   const [run, setRun] = useState(null);
   const [error, setError] = useState('');
   const { query, results } = useSearch(run);
+  const set = (key) => (v) => { setForm({ ...form, [key]: v }); if (error) setError(''); };
   const submit = (e) => {
     e.preventDefault();
-    if (!form.first.trim() && !form.last.trim()) { setError('Enter at least a first or last name.'); return; }
+    setRun(null); setByRef({ busy: false, found: null });
+    if (form.ref.trim()) {
+      setError(''); setByRef({ busy: true, found: null });
+      lookupContact(form.ref.trim()).then((found) => setByRef({ busy: false, found }), () => { setByRef({ busy: false, found: null }); setError('No contact has that reference number. Check it with them, or search by name.'); });
+      return;
+    }
+    if (!form.first.trim() && !form.last.trim()) { setError('Enter a reference number, or a first or last name.'); return; }
     setError(''); setRun({ first: form.first, last: form.last, dob: form.dob });
   };
-  const set = (key) => (v) => { setForm({ ...form, [key]: v }); if (error) setError(''); };
+  const attach = () => edit({ priorRef: byRef.found.ref }, { now: true }).then(() => { close(true); openModal('ascHistory', { contactId: k.id }); });
   const pick = (c) => { edit({ candidateId: c.id, path: 'client' }, { now: true }); close(true); };
   return (
-    <form className="asc-inline" onSubmit={submit} noValidate aria-labelledby="h-quick">
-      <h3 id="h-quick">Look them up now</h3>
-      <p className="asc-hint">The rest of the intake stays here. You'll confirm details and enroll on the Identify step.</p>
-      <div className="form-grid is-3">
-        <Field id="q-first" label="First name" autoFocus value={form.first} onChange={set('first')} autoComplete="off" />
+    <form className="asc-inline" onSubmit={submit} noValidate aria-labelledby="h-lookup-caller">
+      <h3 id="h-lookup-caller">Look up caller</h3>
+      <div className="form-grid asc-lookup-grid">
+        <Field id="asc-ref" label="Reference number" autoFocus value={form.ref} onChange={set('ref')} placeholder="EV-26-000142" autoComplete="off" aria-invalid={!!error && !!form.ref} aria-describedby={error ? 'asc-look-err' : undefined} />
+        <Field id="q-first" label="First name" value={form.first} onChange={set('first')} autoComplete="off" />
         <Field id="q-last" label="Last name" value={form.last} onChange={set('last')} autoComplete="off" />
         <Field id="q-dob" label="Date of birth" value={form.dob} onChange={set('dob')} type="date" />
       </div>
-      {error && <p className="field-error" role="alert">{error}</p>}
+      {error && <p className="field-error" id="asc-look-err" role="alert">{error}</p>}
       <div className="asc-inline-row is-end">
         <button type="button" className="btn-text" onClick={() => close()}>Cancel</button>
-        <button type="submit" className="btn-primary">Search MCI</button>
+        <button type="submit" className="btn-primary" disabled={byRef.busy}>Search</button>
       </div>
+      {byRef.found && (
+        <div className="asc-found" role="status">
+          <span><strong>{byRef.found.ref}</strong> · {usDate(byRef.found.startedAt)} · {byRef.found.clientName || 'Anonymous' + (byRef.found.anonName ? ': ' + byRef.found.anonName : '')} · {byRef.found.needs.map((n) => n.name).join(', ')}</span>
+          <button type="button" className="btn-outline" onClick={attach}><Icon name="history" />Attach and View</button>
+        </div>
+      )}
       {run && (
         <div className="asc-results" aria-live="polite">
           {!query.ready ? <p className="asc-hint">Searching…</p>
             : results.length ? (
-              <>
-                <p className="field-label">{results.length === 1 ? '1 possible match' : results.length + ' possible matches'}</p>
-                <ul className="asc-result-list">
-                  {results.slice(0, 6).map((c) => (
-                    <li key={c.id}>
-                      <span><strong>{c.first} {c.last}</strong><small>{dobText(c)} · MCI {c.mci} · {c.address.city} {c.address.zip}</small></span>
-                      <button type="button" className="btn-outline" onClick={() => pick(c)}>Select {c.first} {c.last}</button>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : <p className="asc-hint">No match. Keep going with the intake; you can search again on the Identify step.</p>}
+              <ul className="asc-result-list">
+                {results.slice(0, 6).map((c) => (
+                  <li key={c.id}>
+                    <span><strong>{c.first} {c.last}</strong><small>{dobText(c)} · MCI {c.mci} · {c.address.city} {c.address.zip}</small></span>
+                    <button type="button" className="btn-outline" onClick={() => pick(c)}>Select {c.first} {c.last}</button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="asc-hint">No match in MCI. Keep going; you can search again on Identify.</p>}
         </div>
       )}
     </form>
   );
 }
 
-export function MatchCard({ k, edit }) {
-  const { client: c } = useClient(k.candidateId || k.clientId);
+// The person this contact is about, once picked: one line. Details and "Not the right person" are on Identify.
+export function MatchCard({ k }) {
   const s = k.candidate || k.client;
   // Focus moves here only when a match is chosen, not when the page opens with one already chosen.
   const shownAtOpen = useRef(!!s).current;
   const head = useMountFocus(!!s && !shownAtOpen);
   if (!s) return null;
-  const inAsc = s.colabs.indexOf('ASC') >= 0;
   return (
-    <section className="asc-match" aria-labelledby="h-match">
-      <div className="asc-match-top">
-        <span className="asc-avatar" aria-hidden="true">{initials(s)}</span>
-        <div className="asc-match-name">
-          <h3 id="h-match" tabIndex={-1} ref={head}>{s.first} {s.last}</h3>
-          <span>{dobText(s)} · MCI {s.mci} · {s.address.city} {s.address.zip}</span>
-        </div>
-        {!k.clientId && <button type="button" className="btn-text" onClick={() => edit({ candidateId: null, path: null }, { now: true })}>Not the right person</button>}
-      </div>
-      <dl className="asc-facts">
-        <div><dt>In ASC</dt><dd>{k.clientId ? 'Enrolled' : inAsc ? 'Enrolled' : 'Not enrolled yet'}</dd></div>
-        <div><dt>Coverage on file</dt><dd>{c && c.coverage ? c.coverage.plan + ', ' + c.coverage.status.toLowerCase() : c ? 'None on file' : '…'}</dd></div>
-        <div><dt>Guardian on file</dt><dd>{c && c.guardian ? c.guardian.name + ', ' + c.guardian.relationship.toLowerCase() : c ? 'None on file' : '…'}</dd></div>
-        <div className={k.priorRefs.length || (k.possibleLinks && k.possibleLinks.length) ? 'is-warn' : ''}><dt>Earlier contacts</dt><dd>{k.priorRefs.length ? k.priorRefs.length + ' by reference number' : 'Checked on the Identify step'}</dd></div>
-      </dl>
-      <p className="asc-hint">Keep going with the intake. These questions apply on every contact; answers already on file show as a quick check.</p>
+    <section className="asc-match is-line" aria-labelledby="h-match">
+      <span className="asc-avatar" aria-hidden="true">{initials(s)}</span>
+      <h3 id="h-match" tabIndex={-1} ref={head}>{s.first} {s.last}</h3>
+      <span>{dobText(s)} · MCI {s.mci}</span>
     </section>
   );
 }
@@ -190,77 +150,70 @@ function Needs({ k, edit, openModal }) {
             </li>
           ))}
         </ul>
-      ) : <p className="asc-empty">No needs yet. Add one below, or from a screening answer above.</p>}
+      ) : <p className="asc-empty">No needs yet.</p>}
       <div className="asc-add-row" role="group" aria-label="Add a need">
         {NEED_OPTIONS.filter((x) => names.indexOf(x) < 0).map((x) => <button key={x} type="button" className="opt is-add" onClick={() => add(x)}><Icon name="plus" size={14} />{x}</button>)}
       </div>
       <form className="asc-inline-row" onSubmit={(e) => { e.preventDefault(); add(custom); setCustom(''); }}>
-        <Field id="asc-custom-need" label="Or describe another need" value={custom} onChange={setCustom} placeholder="For example: help with a utility shutoff notice" />
+        <Field id="asc-custom-need" label="Another need" value={custom} onChange={setCustom} placeholder="For example: help with a utility shutoff notice" />
         <button type="submit" className="btn-outline">Add Need</button>
       </form>
     </Section>
   );
 }
 
+// A concern answer adds the matching need straight away (with Undo), so there's nothing extra to press.
 function Screening({ k, edit }) {
-  const names = k.needs.map((n) => n.name);
+  const { toast } = useApi();
+  const answer = (q, v) => {
+    const need = needForScreen(q, k.intake.age);
+    const add = isConcern(q, v) && !k.needs.some((n) => n.name === need);
+    if (!add) { edit({ screening: { [q.key]: v } }, { now: true }); return; }
+    const before = k.needs;
+    edit({ screening: { [q.key]: v }, needs: before.concat([newNeed(need)]) }, { now: true });
+    toast(need + ' added to needs', { undo: () => edit({ needs: before }, { now: true }) });
+  };
   return (
-    <Section id="h-screen" title="Screening" icon="check" hint="About the person who needs help. Asked on every contact; answers carry onto their ASC record.">
+    <Section id="h-screen" title="Screening" icon="check">
       <div className="asc-screen">
-        {SCREENING.map((q) => {
-          const need = needForScreen(q, k.intake.age);
-          const a = k.screening[q.key];
-          const concern = isConcern(q, a);
-          return (
-            <div className="asc-q" key={q.key}>
-              <p className="asc-q-text" id={'q-' + q.key}>{q.question}</p>
-              <div className="asc-q-row">
-                <Options labelId={'q-' + q.key} value={a} options={q.options} concern={q.concern} onChange={(v) => edit({ screening: { [q.key]: v } }, { now: true })} />
-                {/* One button that changes state, so focus stays put after adding the need. */}
-                {concern && (names.indexOf(need) < 0
-                  ? <button type="button" className="btn-outline is-small" onClick={() => edit({ needs: k.needs.concat([newNeed(need)]) }, { now: true })}><Icon name="plus" size={14} />Add Need: {need}</button>
-                  : <button type="button" className="btn-outline is-small is-done" aria-disabled="true"><Icon name="checkSmall" size={14} />{need}: on the needs list</button>)}
-              </div>
-            </div>
-          );
-        })}
+        {SCREENING.map((q) => (
+          <div className="asc-q" key={q.key}>
+            <p className="asc-q-text" id={'q-' + q.key}>{q.question}</p>
+            <Options labelId={'q-' + q.key} value={k.screening[q.key]} options={q.options} concern={q.concern} onChange={(v) => answer(q, v)} />
+          </div>
+        ))}
       </div>
     </Section>
   );
 }
 
 export function IntakeStep({ k, edit, openModal, next }) {
-  const [panel, setPanelState] = useState(null);
-  // Closing an inline helper puts focus back on the button that opened it.
-  const setPanel = (v, quiet) => { if (!v && panel && !quiet) focusLater(panel === 'return' ? 'asc-btn-return' : 'asc-btn-quick'); setPanelState(v); };
+  const [look, setLookState] = useState(false);
+  // Closing the lookup puts focus back on the button that opened it.
+  const setLook = (v, quiet) => { if (!v && look && !quiet) focusLater('asc-btn-look'); setLookState(v); };
   const { client: c } = useClient(k.candidateId || null);
   const i = k.intake;
   const set = (key, now) => (v) => edit({ intake: { [key]: v } }, now ? { now: true } : undefined);
-  const gaps = intakeGaps(k);
   const closed = k.status === 'closed';
   return (
     <div className="view asc-view">
-      <div className="view-head">
-        <h2 className="title"><Icon name="notes" size={24} />Intake</h2>
-        {!k.clientId && !k.candidateId && !closed && (
-          <div className="asc-head-actions">
-            <button type="button" className="btn-outline" id="asc-btn-return" aria-expanded={panel === 'return'} onClick={() => setPanel(panel === 'return' ? null : 'return')}><Icon name="history" />Returning Caller</button>
-            <button type="button" className="btn-outline" id="asc-btn-quick" aria-expanded={panel === 'quick'} onClick={() => setPanel(panel === 'quick' ? null : 'quick')}><Icon name="idCard" />They Gave Their Name</button>
-          </div>
-        )}
-      </div>
-      {panel === 'return' && <ReturningCaller k={k} edit={edit} openModal={openModal} close={(quiet) => setPanel(null, quiet)} />}
-      {panel === 'quick' && <QuickIdentify k={k} edit={edit} close={(quiet) => setPanel(null, quiet)} />}
+      <StepHeading>Intake</StepHeading>
+      {!k.clientId && !k.candidateId && !closed && (
+        <div className="asc-step-actions">
+          <button type="button" className="btn-outline" id="asc-btn-look" aria-expanded={look} onClick={() => setLook(!look)}><Icon name="search" />Look Up Caller</button>
+        </div>
+      )}
+      {look && <LookUp k={k} edit={edit} openModal={openModal} close={(quiet) => setLook(false, quiet)} />}
       {k.priorRefs.length > 0 && (
         <div className="notice is-info">
           <Icon name="history" size={18} />
           <p><strong>Returning caller.</strong> Earlier contacts {k.priorRefs.join(' and ')} are tied to this one.</p>
-          <button type="button" className="btn-outline" onClick={() => openModal('ascHistory', { contactId: k.id })}>View Previous Interactions</button>
+          <button type="button" className="btn-outline" onClick={() => openModal('ascHistory', { contactId: k.id })}>View History</button>
         </div>
       )}
-      {(k.candidateId || k.clientId) && <MatchCard k={k} edit={edit} />}
+      {(k.candidateId || k.clientId) && <MatchCard k={k} />}
 
-      <ContactType k={k} edit={edit} />
+      <Where k={k} edit={edit} />
       <Safety k={k} edit={edit} openModal={openModal} />
 
       <Section id="h-who" title="Who's calling" icon="users">
@@ -276,17 +229,12 @@ export function IntakeStep({ k, edit, openModal, next }) {
         {i.caller === 'Other' && <div className="form-grid is-2"><Field id="asc-caller-other" label="Who is calling?" value={i.callerOther} onChange={set('callerOther')} placeholder="For example: neighbor, pastor, landlord" /></div>}
         <p className="field-label" id="h-age">The person who needs help</p>
         <Options labelId="h-age" value={i.age} options={AGES} onChange={set('age', true)} />
-        <div className="form-grid is-2"><Field id="asc-caller-name" label="What should we call the caller? (optional)" value={i.callerName} onChange={set('callerName')} autoComplete="off" /></div>
+        <div className="form-grid is-2"><Field id="asc-caller-name" label="Caller's name (optional)" value={i.callerName} onChange={set('callerName')} autoComplete="off" /></div>
       </Section>
 
       <Section id="h-story" title="What's going on" icon="notes">
         <label className="sr-only" htmlFor="asc-story">What's going on, in their words</label>
-        <textarea className="input is-block" id="asc-story" rows={4} value={i.story} onChange={(e) => set('story')(e.target.value)} placeholder="In their words: what's happening, and what they're hoping for" />
-        <p className="field-label" id="h-reason">Reason for {k.channel === 'person' ? 'the visit' : 'calling'}</p>
-        <Options labelId="h-reason" value={i.reason} options={REASONS} onChange={set('reason', true)} />
-        {i.reason === 'Following up on an earlier contact' && !k.priorRefs.length && !k.clientId && (
-          <p className="notice is-info"><Icon name="history" size={18} /><span>Following up? Ask for their reference number to see what happened last time.</span><button type="button" className="btn-outline" onClick={() => setPanel('return')}>Find Earlier Contacts</button></p>
-        )}
+        <textarea className="input is-block" id="asc-story" rows={4} value={i.story} onChange={(e) => set('story')(e.target.value)} placeholder="In their words" />
       </Section>
 
       <Screening k={k} edit={edit} />
@@ -301,7 +249,7 @@ export function IntakeStep({ k, edit, openModal, next }) {
           </div>
         )}
         <Options label="Healthcare coverage" value={i.coverage} options={COVERAGE} onChange={set('coverage', true)} />
-        {i.coverage && i.coverage !== 'None' && i.coverage !== 'Doesn’t know' && <div className="form-grid is-2"><Field id="asc-cov" label="Plan details, if they know them (optional)" value={i.coverageDetail} onChange={set('coverageDetail')} placeholder="For example: HealthChoices through CCBH" /></div>}
+        {i.coverage && i.coverage !== 'None' && i.coverage !== 'Doesn’t know' && <div className="form-grid is-2"><Field id="asc-cov" label="Plan (optional)" value={i.coverageDetail} onChange={set('coverageDetail')} placeholder="For example: HealthChoices through CCBH" /></div>}
       </Section>
 
       <Section id="h-found" title="How they found us" icon="search">
@@ -309,10 +257,7 @@ export function IntakeStep({ k, edit, openModal, next }) {
         {i.found === 'Other' && <div className="form-grid is-2"><Field id="asc-found-other" label="How did they find us?" value={i.foundOther} onChange={set('foundOther')} placeholder="For example: flyer at the library" /></div>}
       </Section>
 
-      <div className="asc-foot">
-        {gaps.length ? <p className="asc-gaps"><Icon name="info" size={16} />Still to ask: {gaps.join(', ')}. You can keep going and come back.</p> : <p className="asc-gaps is-done"><Icon name="check" size={16} />Intake complete.</p>}
-        {next && <button type="button" className="btn-primary is-icon" onClick={() => navigate({ page: 'contact', id: k.id, step: next[0] })}>Next: {next[1]}<Icon name="arrowRight" /></button>}
-      </div>
+      {next && <div className="asc-foot"><span /><button type="button" className="btn-primary is-icon" onClick={() => navigate({ page: 'contact', id: k.id, step: next[0] })}>Next: {next[1]}<Icon name="arrowRight" /></button></div>}
     </div>
   );
 }

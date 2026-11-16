@@ -47,6 +47,9 @@ const routes = [
   ['PATCH', /^\/asc\/contacts\/([^/]+)$/, (m, q, body) => api.updateContact(db, m[1], body)],
   ['POST', /^\/asc\/contacts\/([^/]+)\/link$/, (m, q, body) => api.linkContact(db, m[1], body)],
   ['POST', /^\/asc\/contacts\/([^/]+)\/close$/, (m, q, body) => api.closeContact(db, m[1], body)],
+  ['POST', /^\/asc\/contacts\/([^/]+)\/correction$/, (m, q, body) => api.startCorrection(db, m[1], body)],
+  ['POST', /^\/asc\/contacts\/([^/]+)\/correction\/finish$/, (m) => api.finishCorrection(db, m[1])],
+  ['PUT', /^\/session$/, (m, q, body) => api.switchUser(db, body)],
   ['GET', /^\/asc\/history$/, (m, q) => api.contactHistory(db, Object.fromEntries(q))],
   // Test helpers, not part of the API contract.
   ['POST', /^\/__reset$/, () => { db = buildSeed(); return [204]; }],

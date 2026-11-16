@@ -3,8 +3,11 @@
 // units, follow-up dates and what the state report needs.
 
 export const CHANNELS = { phone: 'Phone call', person: 'In person' };
+// The role that can correct a closed contact.
+export const SUPERVISOR = 'ASC Supervisor';
 
-export const SAFETY = ['Asked: no danger now', 'Not asked yet'];
+// Safety: No, or Yes (which opens urgent routing). Nothing chosen means it hasn't been asked yet.
+export const SAFETY = ['No'];
 export const CALLERS = ['The client', 'Parent or guardian', 'Other family', 'Provider for their client', 'School, CYF, hospital or jail', 'Other'];
 export const AGES = ['Child, 0–17', 'Adult, 18–59', 'Older adult, 60+', 'Not sure'];
 export const REASONS = ['Find services', 'Question about coverage', 'Following up on an earlier contact', 'Referring someone', 'Something else'];
@@ -16,12 +19,14 @@ export const NEED_OPTIONS = ['Mental health services for a child', 'Mental healt
 
 // The screening asked on every contact. A concern answer offers to add the matching need.
 export const SCREENING = [
-  { key: 'mh', label: 'Mental health', short: 'mental health', question: 'Any mental health concerns?', options: ['Yes', 'No', 'Not sure', 'Prefers not to say'], concern: ['Yes'], need: 'MH' },
-  { key: 'ph', label: 'Physical health', short: 'physical health', question: 'Is everything OK with their physical health?', options: ['Yes, OK', 'Concern', 'Not sure', 'Prefers not to say'], concern: ['Concern'], need: 'Physical health care' },
-  { key: 'house', label: 'Housing', short: 'housing', question: 'Do they have housing?', options: ['Yes, stable', 'At risk of losing it', 'No housing', 'Prefers not to say'], concern: ['At risk of losing it', 'No housing'], need: 'Housing' },
-  { key: 'food', label: 'Access to food', short: 'food', question: 'Do they have access to food?', options: ['Yes', 'Sometimes', 'No', 'Prefers not to say'], concern: ['Sometimes', 'No'], need: 'Food or other benefits' },
-  { key: 'su', label: 'Substance use', short: 'substance use', question: 'Is there a substance use concern?', options: ['Yes', 'No', 'Not sure', 'Prefers not to say'], concern: ['Yes'], need: 'Substance use treatment' }
+  { key: 'mh', label: 'Mental health', short: 'mental health', question: 'Any mental health concerns?', options: ['Yes', 'No', 'Skip'], concern: ['Yes'], need: 'MH' },
+  { key: 'ph', label: 'Physical health', short: 'physical health', question: 'Is everything OK with their physical health?', options: ['Yes, OK', 'Concern', 'Skip'], concern: ['Concern'], need: 'Physical health care' },
+  { key: 'house', label: 'Housing', short: 'housing', question: 'Do they have housing?', options: ['Yes, stable', 'At risk of losing it', 'No housing', 'Skip'], concern: ['At risk of losing it', 'No housing'], need: 'Housing' },
+  { key: 'food', label: 'Access to food', short: 'food', question: 'Do they have access to food?', options: ['Yes', 'Sometimes', 'No', 'Skip'], concern: ['Sometimes', 'No'], need: 'Food or other benefits' },
+  { key: 'su', label: 'Substance use', short: 'substance use', question: 'Is there a substance use concern?', options: ['Yes', 'No', 'Skip'], concern: ['Yes'], need: 'Substance use treatment' }
 ];
+// "Skip" replaced "Not sure" and "Prefers not to say" (v4.1). Older answers keep their meaning.
+export const SKIP = 'Skip';
 export const needForScreen = (q, age) => (q.need === 'MH' ? (age === 'Child, 0–17' ? 'Mental health services for a child' : 'Mental health, adult') : q.need);
 export const isConcern = (q, answer) => q.concern.indexOf(answer) >= 0;
 
@@ -29,6 +34,12 @@ export const IX_TYPES = ['Information and resources [code TBD]', 'Benefit Assist
 export const PLACES = ['Telephone [code TBD]', 'Office [code TBD]', 'Community [code TBD]'];
 export const HOWS = ['Explained by phone', 'Explained in person', 'Number given', 'Warm transfer', 'Walked them to the provider', 'Transferred', 'Sent in writing [not decided]'];
 export const defaultPlace = (channel) => (channel === 'person' ? PLACES[1] : PLACES[0]);
+export const SITES = ['Mercy Behavioral Health', 'Steel Valley Recovery Center', 'Northside Community Health Clinic'];
+// Switching between phone and in person: interactions logged as Telephone become Office, and back.
+export function channelPatch(contact, channel) {
+  const swap = { [PLACES[0]]: defaultPlace(channel), [PLACES[1]]: defaultPlace(channel) };
+  return { channel, site: channel === 'person' ? contact.site || SITES[0] : '', interactions: contact.interactions.map((x) => ({ ...x, place: swap[x.place] || x.place })) };
+}
 export function howFor(channel, how) {
   if (channel !== 'person') return how;
   return how === 'Explained by phone' ? 'Explained in person' : how === 'Warm transfer' ? 'Walked them to the provider' : how;
@@ -38,12 +49,22 @@ export function howFor(channel, how) {
 export const PRESETS = [
   { label: 'IBHS evaluation info', what: 'How to get a child’s mental health evaluation (IBHS)', need: 'MH', type: IX_TYPES[0], how: 'Explained by phone' },
   { label: 'CCBH Member Services', what: 'CCBH Member Services', need: 'Health coverage (MA or HealthChoices)', type: IX_TYPES[1], how: 'Number given' },
-  { label: 'Allegheny Link', what: 'Allegheny Link [confirm number]', need: 'Housing', type: IX_TYPES[0], how: 'Number given' },
+  { label: 'Allegheny Link', what: 'Allegheny Link', need: 'Housing', type: IX_TYPES[0], how: 'Number given' },
   { label: '211', what: '211', need: 'Food or other benefits', type: IX_TYPES[0], how: 'Warm transfer' },
   { label: 'MATP', what: 'MATP, rides to medical appointments', need: 'Rides to care (MATP)', type: IX_TYPES[0], how: 'Number given' }
 ];
 
-export const OUTCOMES = ['Keep open with a follow-up', 'Information given', 'Connected', 'Handed off', 'Transferred to crisis', 'Unable to assist', 'Declined'];
+export const OUTCOMES = ['Still open', 'Info given', 'Connected', 'Handed off', 'Sent to crisis', 'Couldn’t help', 'Declined'];
+export const OPEN = OUTCOMES[0];
+export const CRISIS = OUTCOMES[4];
+// Names used before v4.1, and what they are now. The server upgrades stored contacts once.
+export const LEGACY = {
+  outcome: { 'Keep open with a follow-up': OPEN, 'Information given': 'Info given', 'Transferred to crisis': CRISIS, 'Unable to assist': 'Couldn’t help' },
+  safety: { 'Asked: no danger now': 'No', 'Not asked yet': null, 'Yes: routed to crisis': 'Yes' },
+  screening: { 'Not sure': SKIP, 'Prefers not to say': SKIP }
+};
+// Placeholders like "[code TBD]" stay in the data for the team, and are hidden from coordinators.
+export const shown = (s) => String(s == null ? '' : s).replace(/\s*\[[^\]]*\]/g, '').trim();
 export const URGENT_DESTINATIONS = [
   { id: '911', label: '911', text: 'Immediate danger to life or safety' },
   { id: '988', label: '988 Lifeline', text: 'Thoughts of suicide or emotional crisis' },
@@ -135,7 +156,7 @@ export function stepState(contact) {
   const i = contact.intake;
   const screened = SCREENING.filter((q) => contact.screening[q.key]).length;
   return {
-    intake: !!i.safety && i.safety !== 'Not asked yet' && contact.needs.length > 0 && screened === SCREENING.length && !!i.coverage && !!i.found,
+    intake: !!i.safety && contact.needs.length > 0 && screened === SCREENING.length && !!i.coverage && !!i.found,
     identify: contact.path === 'anon' || !!contact.clientId || contact.identity === 'unverified',
     interactions: contact.interactions.length > 0 && !totals(contact.interactions).incomplete,
     'wrap-up': contact.status === 'closed'
@@ -143,7 +164,7 @@ export function stepState(contact) {
 }
 export function intakeGaps(contact) {
   const i = contact.intake, gaps = [];
-  if (!i.safety || i.safety === 'Not asked yet') gaps.push('safety');
+  if (!i.safety) gaps.push('safety');
   const screened = SCREENING.filter((q) => contact.screening[q.key]).length;
   if (screened < SCREENING.length) gaps.push('screening (' + screened + ' of ' + SCREENING.length + ')');
   if (!contact.needs.length) gaps.push('needs');
