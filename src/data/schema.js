@@ -127,6 +127,7 @@ export function normalizeClient(c) {
     services: arr(c.services).map((s) => ({ id: str(s.id), service: str(s.service), area: str(s.area), program: str(s.program), first: str(s.first), last: str(s.last), added: str(s.added), all: arr(s.all).map(str), grouped: arr(s.grouped).map(str) })),
     instances: arr(c.instances).map((i) => ({ service: str(i.service), provider: str(i.provider), facility: str(i.facility), program: str(i.program), dx: str(i.dx), units: str(i.units), rate: str(i.rate), rateType: str(i.rateType), cost: str(i.cost), status: str(i.status), first: str(i.first), last: str(i.last) })),
     enrollments: arr(c.enrollments).map((e) => ({ name: str(e.name), kind: str(e.kind) || 'active', status: str(e.status), pct: num(e.pct), start: str(e.start), end: str(e.end), asOf: str(e.asOf), stale: bool(e.stale) })),
+    ascDischarge: c.ascDischarge ? { by: str(c.ascDischarge.by), at: str(c.ascDischarge.at), reason: str(c.ascDischarge.reason), note: str(c.ascDischarge.note) } : null,
     justice: j ? {
       highRisk: arr(j.highRisk).map(str),
       jail: j.jail ? { doc: str(j.jail.doc), docket: str(j.jail.docket), pod: str(j.jail.pod), podLevel: str(j.jail.podLevel) } : null,
@@ -238,4 +239,26 @@ export function normalizeHistory(h) {
 export const normalizeContactChange = (r) => ({
   contact: normalizeContact(r.contact), client: r.client ? normalizeClient(r.client) : null,
   notes: (r.notes || []).map(normalizeNote), actions: (r.actions || []).map(normalizeAction), removeActions: r.removeActions || []
+});
+
+// ------------------------------------------------------------------ ASC supervisor tools
+const normalizeTeamAction = (a) => ({ id: str(a.id), text: str(a.text), due: str(a.due), clientId: str(a.clientId), contactId: str(a.contactId), where: str(a.where) });
+export const normalizeTeam = (t) => ({
+  staff: arr(obj(t).staff).map((s) => ({ id: str(s.id), name: str(s.name), role: str(s.role), contacts: arr(s.contacts).map(normalizeContactSummary), actions: arr(s.actions).map(normalizeTeamAction) }))
+});
+export const normalizeReassign = (r) => ({ contacts: arr(r.contacts).map(normalizeContact), actions: arr(r.actions).map(normalizeAction), moved: num(r.moved) });
+export const normalizeCloseout = (r) => ({
+  id: str(r.id), clientId: str(r.clientId), by: str(r.by), byName: str(r.byName), at: str(r.at), reason: str(r.reason), note: str(r.note), status: str(r.status),
+  decidedBy: str(r.decidedBy), decidedByName: str(r.decidedByName), decidedAt: str(r.decidedAt), decisionNote: str(r.decisionNote),
+  client: r.client ? normalizeClientSummary(r.client) : null, openContacts: num(r.openContacts), openActions: num(r.openActions), openNeeds: arr(r.openNeeds).map(str), lastContact: str(r.lastContact)
+});
+export const normalizeDischarge = (r) => ({
+  client: r.client ? normalizeClient(r.client) : null, removeActions: arr(r.removeActions).map(str), notes: arr(r.notes).map(normalizeNote), closeout: r.closeout ? normalizeCloseout(r.closeout) : null
+});
+export const normalizeReport = (r) => ({
+  period: str(r.period),
+  rows: arr(r.rows).map((x) => ({ id: str(x.id), contactId: str(x.contactId), ref: str(x.ref), clientId: str(x.clientId), clientName: str(x.clientName), mci: str(x.mci), code: str(x.code), date: str(x.date), units: num(x.units), place: str(x.place), coordinator: str(x.coordinator), problems: arr(x.problems).map(str) })),
+  totals: { contacts: num(r.totals && r.totals.contacts), clients: num(r.totals && r.totals.clients), rows: num(r.totals && r.totals.rows), units: num(r.totals && r.totals.units), problems: num(r.totals && r.totals.problems) },
+  notSent: { open: num(r.notSent && r.notSent.open), anonymous: num(r.notSent && r.notSent.anonymous), unverified: num(r.notSent && r.notSent.unverified) },
+  submission: r.submission ? { by: str(r.submission.by), byName: str(r.submission.byName), at: str(r.submission.at), rows: num(r.submission.rows), units: num(r.submission.units), contacts: num(r.submission.contacts), version: num(r.submission.version), changedSince: arr(r.submission.changedSince).map(str) } : null
 });

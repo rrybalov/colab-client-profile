@@ -80,6 +80,7 @@ Every release is kept on its own branch, so nothing is lost:
 | `archive/v4.0.1` | ASC QA fixes: saves never lose typing, closed contacts read-only, focus and laptop-width fixes |
 | `archive/v4.1` | Simpler ASC screens, automatic summary note, supervisor corrections |
 | `archive/v4.2` | CoLab menu navigates to each CoLab's home; contact records and logs; flags; ASC on Services; 3-day reminders |
+| `archive/v4.3` | Supervisor tools: close-out requests and discharge, reassignment, state reporting |
 
 `CHANGELOG.md` lists what changed in each.
 

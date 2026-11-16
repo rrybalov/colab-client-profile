@@ -86,7 +86,7 @@ export function Overview({ client: c }) {
     body = list.length ? (
       <ul className="enroll-list">
         {list.map((e) => (
-          <li key={e.name} className={'enroll is-' + e.kind}>
+          <li key={e.name + e.start} className={'enroll is-' + e.kind}>
             <div className="enroll-top">
               <div><div className="enroll-name">{e.name}</div>
                 <div className="enroll-asof">{e.asOf}{e.stale && <span style={{ color: 'var(--red-text)' }}><Icon name="alert" size={13} label="Out of date" /></span>}</div></div>

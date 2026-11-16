@@ -237,3 +237,13 @@ export function summaryNote(k, staffName) {
   lines.push('Event ID ' + k.ref + (k.logId ? ' · ' + (k.channel === 'person' ? 'Visit ID ' : 'Call Log ID ') + k.logId : '') + '.');
   return lines.join('\n');
 }
+
+// ------------------------------------------------------------------ close-out and discharge
+export const DISCHARGE_REASONS = ['Needs met', 'Connected to ongoing services', 'Declined further services', 'Unable to reach', 'Moved out of county', 'Other'];
+// The months a state report can cover: this month and the five before it, as YYYY-MM.
+export function reportPeriods(now = new Date(), n = 6) {
+  const out = [];
+  for (let i = 0; i < n; i++) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); out.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')); }
+  return out;
+}
+export const periodLabel = (p) => { const [y, m] = p.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' }); };

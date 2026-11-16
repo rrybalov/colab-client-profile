@@ -1,6 +1,6 @@
 // Data source for a real CoLab API. Endpoints and payloads are documented in docs/API.md.
 // Every response passes through the normalizers in ../schema.js.
-import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange } from '../schema.js';
+import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange, normalizeTeam, normalizeReassign, normalizeCloseout, normalizeDischarge, normalizeReport } from '../schema.js';
 
 export class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -62,6 +62,15 @@ export function createHttpSource({ baseUrl, headers = {}, credentials = 'same-or
     finishCorrection: (id) => request('POST', '/asc/contacts/' + enc(id) + '/correction/finish', {}).then(contactChange),
     switchUser: (userId) => request('PUT', '/session', { userId }),
     lookupContact: (ref) => request('GET', '/asc/contacts/lookup?ref=' + enc(ref)).then(normalizeContactSummary),
-    getContactHistory: (q) => request('GET', '/asc/history?' + query(q)).then(normalizeHistory)
+    getContactHistory: (q) => request('GET', '/asc/history?' + query(q)).then(normalizeHistory),
+    getTeamWork: () => request('GET', '/asc/team').then(normalizeTeam),
+    reassign: (body) => request('POST', '/asc/reassign', body).then(normalizeReassign),
+    listCloseouts: () => request('GET', '/asc/closeouts').then((l) => l.map(normalizeCloseout)),
+    requestCloseout: (clientId, body) => request('POST', '/clients/' + enc(clientId) + '/asc/closeout', body).then(normalizeCloseout),
+    withdrawCloseout: (id) => request('POST', '/asc/closeouts/' + enc(id) + '/withdraw', {}).then(normalizeCloseout),
+    decideCloseout: (id, body) => request('POST', '/asc/closeouts/' + enc(id) + '/decide', body).then(normalizeDischarge),
+    dischargeClient: (clientId, body) => request('POST', '/clients/' + enc(clientId) + '/asc/discharge', body).then(normalizeDischarge),
+    getStateReport: (period) => request('GET', '/asc/reports/' + enc(period)).then(normalizeReport),
+    submitStateReport: (period) => request('POST', '/asc/reports/' + enc(period) + '/submit', {}).then(normalizeReport)
   };
 }

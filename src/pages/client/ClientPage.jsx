@@ -7,6 +7,7 @@ import { Link, CLIENT_TABS } from '../../router.jsx';
 import { Loading, LoadError } from '../../ui/controls.jsx';
 import { fullName } from '../../lib.js';
 import { tabRoute } from './routes.js';
+import { ASC_ENROLLMENT } from '../../data/asc-seed.js';
 import { Shell } from './Shell.jsx';
 import { Crumbs, ClientHeader } from './Header.jsx';
 import { Services } from './Services.jsx';
@@ -73,7 +74,7 @@ export function ClientPage({ route }) {
       <section className="card">
         <div className="tabs-wrap">
           <nav className="tabs" aria-label="Client sections">
-            {CLIENT_TABS.filter(([id]) => id !== 'asc' || client.colabs.indexOf('ASC') >= 0 || route.tab === 'asc').map(([id, label]) => <Link key={id} className="tab" to={tabRoute(client.id, id)} focus={false} aria-current={route.tab === id ? 'page' : undefined}>{label}</Link>)}
+            {CLIENT_TABS.filter(([id]) => id !== 'asc' || client.colabs.indexOf('ASC') >= 0 || (client.enrollments || []).some((e) => e.name === ASC_ENROLLMENT) || route.tab === 'asc').map(([id, label]) => <Link key={id} className="tab" to={tabRoute(client.id, id)} focus={false} aria-current={route.tab === id ? 'page' : undefined}>{label}</Link>)}
           </nav>
         </div>
         <View client={client} />

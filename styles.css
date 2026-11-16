@@ -1097,3 +1097,63 @@ span.src-tag { cursor: default; }
   .asc-log li { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
 .asc-launch .asc-start { margin-left: auto; }
+
+/* ---------- v4.3: ASC pages, close-outs, team, state reporting ---------- */
+.asc-nav { margin: -4px 0 16px; }
+.tab-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: #FBEBD3; color: #5C3D0B; font-size: 11px; font-weight: 700; }
+.btn-primary.is-small { min-height: 36px; padding: 6px 14px; font-size: 12px; }
+.btn-text.is-small { padding: 6px 8px; font-size: 12px; }
+.asc-sub { display: block; color: var(--slate); font-size: 12px; font-weight: 400; }
+/* Close-out on the ASC tab */
+.asc-enroll-card .pairs dd { min-width: 0; overflow-wrap: anywhere; }
+.asc-closeout-box { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid #E2C48F; border-radius: var(--radius); background: #FFF9EE; font-size: 13px; }
+.asc-closeout-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: auto; }
+.asc-closeout-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+.asc-closeout-who span { color: var(--slate); font-size: 12px; }
+.asc-closeout-open { display: flex; flex-direction: column; gap: 6px; }
+.asc-closeout-req { padding: 10px 12px; border-radius: var(--radius); background: var(--smoke); }
+/* Close-out requests */
+.asc-co-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.asc-co { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 14px 16px; border: 1px solid var(--ash); border-radius: var(--radius-lg); }
+.asc-co-main { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.asc-co-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.asc-co-open { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #7A4A00; }
+.asc-co-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Team */
+.asc-team-work { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.asc-reassign { flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--smoke); position: sticky; top: 0; z-index: 2; }
+.asc-reassign .select { width: auto; min-width: 200px; }
+.asc-pick-list { display: flex; flex-direction: column; border: 1px solid var(--ash); border-radius: var(--radius); }
+.asc-pick-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--hairline); }
+.asc-pick-list li:first-child { border-top: 0; }
+.asc-pick-list input { width: 18px; height: 18px; accent-color: var(--dark-blue); }
+.asc-pick-list label { display: flex; flex-direction: column; gap: 2px; font-size: 14px; cursor: pointer; min-width: 0; }
+.asc-pick-list small { color: var(--slate); font-size: 12px; }
+.asc-pick-list small.is-late { color: var(--red-text); font-weight: 600; }
+/* State reporting */
+.asc-rep-period { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.asc-rep-period .select { width: auto; min-width: 190px; }
+.asc-rep-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 12px 0 4px; }
+.asc-rep-stats > div { padding: 10px 12px; border-radius: var(--radius); background: var(--smoke); }
+.asc-rep-stats > div.is-warn { background: #FFF9EE; }
+.asc-rep-stats dt { font-size: 12px; color: var(--slate); }
+.asc-rep-stats dd { font-size: 22px; font-weight: 700; color: var(--black); font-variant-numeric: tabular-nums; }
+.asc-rep-bar { flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.asc-rep-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.asc-rep-problems { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #7A4A00; }
+.asc-rep-problems li { display: flex; gap: 4px; align-items: flex-start; }
+.asc-rep-problems .icon { flex: 0 0 auto; margin-top: 2px; }
+.asc-rep-ok { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--green-text); font-weight: 600; }
+.tr.is-flagged { background: #FFFDF8; }
+@media (max-width: 640px) {
+  .asc-rep-period { margin-left: 0; width: 100%; }
+  .asc-rep-period .select, .asc-reassign .select { flex: 1 1 auto; min-width: 0; }
+  .asc-pick-list li { grid-template-columns: auto minmax(0, 1fr); }
+  .asc-pick-list li > a { grid-column: 2; justify-self: start; }
+}
+.asc-hint.is-icon { display: flex; align-items: flex-start; gap: 6px; }
+.asc-hint.is-icon .icon { flex: 0 0 auto; margin-top: 3px; }
+.asc-closeout-list { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.asc-closeout-list li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 10px; border-radius: var(--radius); background: var(--smoke); }
+.asc-closeout-list li.is-warn { background: #FFF9EE; color: #5C3D0B; }
+.asc-closeout-list .icon { flex: 0 0 auto; margin-top: 2px; color: var(--slate); }

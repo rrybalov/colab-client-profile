@@ -1187,6 +1187,143 @@ async function run(mode) {
     await pg.keyboard.press('Escape');
   });
 
+  await part('ASC: v4.3 close-outs, discharge, reassignment, state report', async () => {
+    const B = await import('../src/data/backend-asc.js');
+    const SEED = await import('../src/data/asc-seed.js');
+    // Rules, on a copy of the data
+    const copy = await source();
+    copy.userId = 'u1';
+    const req = B.requestCloseout(copy, 'c3', { reason: 'Needs met', note: 'Housed' });
+    check('a coordinator can ask for a close-out', req.status === 'pending' && req.byName === 'Logan Bialik');
+    let err = '';
+    try { B.requestCloseout(copy, 'c3', { reason: 'Needs met' }); } catch (e) { err = e.message; }
+    check('only one request waits at a time', /already waiting/.test(err));
+    err = ''; try { B.requestCloseout(copy, 'c14', { reason: 'Because' }); } catch (e) { err = e.message; }
+    check('a close-out needs a listed reason', /reason/.test(err));
+    err = ''; try { B.decideCloseout(copy, req.id, { decision: 'discharge' }); } catch (e) { err = e.message; }
+    check('only a supervisor decides', /supervisor/.test(err));
+    err = ''; try { B.teamWork(copy); } catch (e) { err = e.message; }
+    check('only a supervisor sees the team’s work', /supervisor/.test(err));
+    copy.userId = 'u4';
+    err = ''; try { B.decideCloseout(copy, req.id, { decision: 'decline' }); } catch (e) { err = e.message; }
+    check('declining needs a reason for the coordinator', /why/i.test(err));
+    check('a decline keeps them enrolled', B.decideCloseout(copy, req.id, { decision: 'decline', note: 'Lease not signed yet' }).closeout.status === 'declined' && copy.clients.find((c) => c.id === 'c3').colabs.includes('ASC'));
+    const open = B.createContact(copy, { channel: 'phone', clientId: 'c3' });
+    err = ''; try { B.dischargeClient(copy, 'c3', { reason: 'Needs met' }); } catch (e) { err = e.message; }
+    check('can’t discharge with a contact in progress', /in progress/.test(err));
+    const moved = B.reassign(copy, { to: 'u6', contactIds: [open.id] });
+    check('reassigning a contact moves it and logs it', moved.moved === 1 && copy.contacts.find((k) => k.id === open.id).staff === 'u6' && /Reassigned from Priya Natarajan to Tom Rinaldi/.test(copy.contacts.find((k) => k.id === open.id).log.slice(-1)[0].text));
+    const periods = ASC.reportPeriods(new Date(), 6);
+    const reps = periods.map((p) => B.stateReport(copy, p));
+    const withProblem = reps.find((r) => r.totals.problems);
+    check('the report flags a service with no state code', !!withProblem && withProblem.rows.some((r) => r.problems.some((x) => /Service code not set/.test(x))));
+    err = ''; try { B.submitReport(copy, withProblem.period); } catch (e) { err = e.message; }
+    check('a report with problems can’t be marked submitted', /Fix/.test(err));
+    check('anonymous contacts are counted, not sent', reps.some((r) => r.notSent.anonymous > 0) && reps.every((r) => r.rows.every((x) => x.clientId)));
+
+    // A coordinator asks to close out a client
+    await go('#asc');
+    check('coordinators don’t see Team or State Reporting', (await pg.locator('.asc-nav .tab').allInnerTexts()).map((t) => t.replace(/\d+/g, '').trim()).join('|') === 'Contacts|Close-Outs');
+    await go('#asc/team');
+    check('the Team page is for supervisors', (await text('#main')).includes('Only ASC supervisors'));
+    await go('#client/c14/asc');
+    await btn('Request Close-Out', true).click();
+    await pg.waitForSelector('.modal');
+    check('the dialog lists what’s still open', (await text('.asc-closeout-open')).includes('Food or other benefits'));
+    await btn('Send to Supervisor', true).click();
+    check('a reason is required', (await count('#co-reason-err')) === 1);
+    await pg.selectOption('#co-reason', 'Connected to ongoing services');
+    await pg.fill('#co-note', 'Pantry and SNAP sorted.');
+    await btn('Send to Supervisor', true).click();
+    await pg.waitForSelector('.asc-closeout-box');
+    let db = await source();
+    const mine = db.closeouts.find((r) => r.clientId === 'c14');
+    check('the request waits for a supervisor', mine && mine.status === 'pending' && mine.by === 'u1' && db.clients.find((c) => c.id === 'c14').colabs.includes('ASC'));
+    check('the tab says a close-out was requested', (await text('.asc-enroll-card')).includes('Close-out requested'));
+    await go('#asc/closeouts');
+    check('coordinators see their own requests, with Withdraw', (await pg.locator('.asc-co').allInnerTexts()).every((t) => !t.includes('Asked by') || t.includes('Logan Bialik')) && (await pg.locator('.asc-co', { hasText: 'Rosa Graham' }).getByRole('button', { name: 'Withdraw' }).count()) === 1);
+
+    // A supervisor discharges one and declines another
+    await go('#home');
+    await pg.selectOption('#switch-user', 'u4');
+    await pg.waitForSelector('.side-user:has-text("Priya")');
+    await go('#asc/closeouts');
+    await pg.waitForSelector('.asc-co');
+    check('supervisors see every request waiting, counted on the tab', (await count('.asc-co')) === 2 && (await text('.asc-nav .tab-count')) === '2');
+    const before = (await source()).actions.filter((a) => a.clientId === 'c14' && !a.done && /^k[ab]/.test(a.id)).length;
+    await pg.locator('.asc-co', { hasText: 'Rosa Graham' }).getByRole('button', { name: 'Discharge' }).click();
+    await pg.waitForSelector('.modal');
+    await pg.locator('.modal').getByRole('button', { name: 'Discharge from ASC' }).click();
+    await pg.waitForSelector('.modal', { state: 'detached' });
+    await pg.waitForTimeout(300);
+    db = await source();
+    const rosa = db.clients.find((c) => c.id === 'c14');
+    const e = rosa.enrollments.find((x) => x.name === SEED.ASC_ENROLLMENT);
+    check('discharge ends the enrollment', e.kind === 'inactive' && e.status === 'Discharged' && !rosa.colabs.includes('ASC') && rosa.ascDischarge.reason === 'Connected to ongoing services');
+    check('removes the scheduled follow-ups', before > 0 && db.actions.filter((a) => a.clientId === 'c14' && !a.done && /^k[ab]/.test(a.id)).length === 0);
+    check('marks the request and writes a case note', db.closeouts.find((r) => r.id === mine.id).status === 'discharged' && db.notes.some((n) => n.clientId === 'c14' && n.text.startsWith('Discharged from ASC')));
+    check('the Services row runs to the discharge date', rosa.services.find((s) => s.id === 'asc').last === e.end);
+    await pg.locator('.asc-co', { hasText: 'Destiny Dixon' }).getByRole('button', { name: 'Decline' }).click();
+    await pg.waitForSelector('.modal');
+    await pg.locator('.modal').getByRole('button', { name: 'Decline Request' }).click();
+    check('declining asks why', (await text('.modal')).includes('Say why'));
+    await pg.fill('#co-note', 'Wait for the 90-day check-in first.');
+    await pg.locator('.modal').getByRole('button', { name: 'Decline Request' }).click();
+    await pg.waitForSelector('.modal', { state: 'detached' });
+    await btn(/^Decided/).click();
+    check('decided requests are listed with the outcome', (await text('.asc-co-list')).includes('Declined by Priya Natarajan') && (await text('.asc-co-list')).includes('Discharged'));
+
+    // The discharged client's tab, and coming back
+    await go('#client/c14/asc');
+    await pg.waitForSelector('.asc-enroll-card');
+    check('the ASC tab stays, showing the discharge', (await count('.tabs .tab >> text=ASC')) === 1 && (await text('.asc-view')).includes('Discharged from ASC') && (await text('.asc-enroll-card')).includes('Connected to ongoing services'));
+    await btn('New Phone Contact', true).click();
+    await pg.waitForSelector('.asc-safety');
+    db = await source();
+    check('a new contact re-enrolls them', db.clients.find((c) => c.id === 'c14').colabs.includes('ASC') && db.clients.find((c) => c.id === 'c14').enrollments.filter((x) => x.name === SEED.ASC_ENROLLMENT && x.kind === 'active').length === 1 && !db.clients.find((c) => c.id === 'c14').ascDischarge);
+    await go('#client/c14/overview');
+    await btn('Program Enrollment').click();
+    check('both ASC enrollments show on the overview', (await pg.locator('.enroll-name', { hasText: 'Administrative Service' }).count()) === 2);
+    await btn('Contact Information').click();
+
+    // Reassignment
+    await go('#asc/team');
+    await pg.waitForSelector('.filter-card');
+    await pg.locator('.filter-card', { hasText: 'Dana Whitfield' }).click();
+    await pg.waitForSelector('.asc-pick-list');
+    const dana = (await source()).actions.filter((a) => a.assignee === 'u2' && a.tag === 'ASC' && !a.done).map((a) => a.id);
+    await pg.locator('.asc-reassign .check-row input').check();
+    await pg.selectOption('#asc-reassign-to', 'u6');
+    await pg.locator('.asc-reassign').getByRole('button', { name: /^Reassign/ }).click();
+    await pg.waitForTimeout(400);
+    db = await source();
+    check('reassign moves the selected work', dana.length > 0 && dana.every((id) => db.actions.find((a) => a.id === id).assignee === 'u6') && db.contacts.flatMap((k) => k.actions).filter((a) => a.assignee === 'u2' && !a.done).length === 0);
+    check('the person’s list is empty after', (await text('.asc-team-work, .panel-card .empty')).includes('no contacts in progress'));
+
+    // State report
+    await go('#asc/reporting');
+    await pg.waitForSelector('.asc-rep-stats');
+    const ok = reps.find((r) => r.rows.length && !r.totals.problems);
+    await pg.selectOption('#asc-period', withProblem.period);
+    await pg.waitForTimeout(200);
+    check('problems block submitting', await btn('Mark as Submitted', true).isDisabled() && (await text('#rep-why')).includes('Fix'));
+    await btn(/^Problems/).click();
+    check('the problems filter shows only flagged lines', (await count('.tr.is-row')) === withProblem.totals.problems);
+    const [dl] = await Promise.all([pg.waitForEvent('download'), btn('Download CSV', true).click()]);
+    const csv = await (await import('node:fs')).promises.readFile(await dl.path(), 'utf8');
+    check('Download CSV gives the month’s lines', dl.suggestedFilename() === 'asc-state-report-' + withProblem.period + '.csv' && csv.startsWith('MCI ID,Client,Service date,Procedure code,Units') && csv.trim().split('\n').length === withProblem.rows.length + 1);
+    if (ok) {
+      await pg.selectOption('#asc-period', ok.period);
+      await pg.waitForTimeout(200);
+      await btn('Mark as Submitted', true).click();
+      await pg.waitForSelector('.notice.is-good');
+      check('a clean month can be marked submitted', !!(await source()).ascReports[ok.period] && await btn('Mark Resubmitted', true).isDisabled());
+    } else check('a clean month exists in the sample data', false);
+    await go('#home');
+    await pg.selectOption('#switch-user', 'u1');
+    await pg.waitForSelector('.side-user:has-text("Logan")');
+  });
+
   const openHistory = async () => { await go(`#asc/contact/${kid}/wrap-up`); await btn('History', true).click(); };
 
   await part('ASC: QA pass 2 (v4.0.1)', async () => {

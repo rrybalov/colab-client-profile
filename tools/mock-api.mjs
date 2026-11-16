@@ -51,6 +51,15 @@ const routes = [
   ['POST', /^\/asc\/contacts\/([^/]+)\/correction\/finish$/, (m) => api.finishCorrection(db, m[1])],
   ['PUT', /^\/session$/, (m, q, body) => api.switchUser(db, body)],
   ['GET', /^\/asc\/history$/, (m, q) => api.contactHistory(db, Object.fromEntries(q))],
+  ['GET', /^\/asc\/team$/, () => api.teamWork(db)],
+  ['POST', /^\/asc\/reassign$/, (m, q, body) => api.reassign(db, body)],
+  ['GET', /^\/asc\/closeouts$/, () => api.listCloseouts(db)],
+  ['POST', /^\/clients\/([^/]+)\/asc\/closeout$/, (m, q, body) => [201, api.requestCloseout(db, m[1], body)]],
+  ['POST', /^\/asc\/closeouts\/([^/]+)\/withdraw$/, (m) => api.cancelCloseout(db, m[1])],
+  ['POST', /^\/asc\/closeouts\/([^/]+)\/decide$/, (m, q, body) => api.decideCloseout(db, m[1], body)],
+  ['POST', /^\/clients\/([^/]+)\/asc\/discharge$/, (m, q, body) => api.dischargeClient(db, m[1], body)],
+  ['GET', /^\/asc\/reports\/(\d{4}-\d{2})$/, (m) => api.stateReport(db, m[1])],
+  ['POST', /^\/asc\/reports\/(\d{4}-\d{2})\/submit$/, (m) => api.submitReport(db, m[1])],
   // Test helpers, not part of the API contract.
   ['POST', /^\/__reset$/, () => { db = buildSeed(); return [204]; }],
   ['GET', /^\/__db$/, () => db]

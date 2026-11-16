@@ -5,7 +5,7 @@ import { readConfig } from './config.js';
 import { createDataSource } from './data/index.js';
 import { StoreProvider, useData } from './state/store.jsx';
 import { useSessionQuery } from './state/data.js';
-import { useRoute, HUB_PAGES, CLIENT_TABS } from './router.jsx';
+import { useRoute, HUB_PAGES, CLIENT_TABS, ASC_PAGES } from './router.jsx';
 import { HubShell } from './pages/hub/HubShell.jsx';
 import { Home, ColabHome } from './pages/hub/Home.jsx';
 import { MyActions, MyNotes } from './pages/hub/MyWork.jsx';
@@ -26,6 +26,7 @@ function useTitle(route) {
   const session = queries.session && queries.session.data;
   const colab = route.page === 'colab' && session ? session.colabs.find((x) => x.id === route.id) : null;
   let title = route.page === 'colab' ? (colab ? colab.name : 'CoLab') : HUB_PAGES[route.page] || 'CoLab';
+  if (route.page === 'asc' && route.sub) title = 'ASC ' + ASC_PAGES[route.sub];
   if (route.page === 'client') {
     const c = clients[route.id];
     const part = SUBPAGES[route.sub] || (CLIENT_TABS.find((t) => t[0] === route.tab) || [0, 'Client'])[1];
@@ -50,7 +51,7 @@ function App() {
   if (route.page === 'client') page = <ClientPage route={route} />;
   else if (route.page === 'contact') page = <ContactPage route={route} />;
   else if (route.page === 'colab') page = <HubShell page="colab" colab={route.id}><ColabHome id={route.id} /></HubShell>;
-  else { const P = HUB[route.page] || Home; page = <HubShell page={route.page}><P /></HubShell>; }
+  else { const P = HUB[route.page] || Home; page = <HubShell page={route.page}><P route={route} /></HubShell>; }
   return <><a className="skip-link" href="#main" onClick={skip}>Skip to main content</a>{page}<Modals /><Toast /></>;
 }
 

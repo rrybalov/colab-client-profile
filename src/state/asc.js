@@ -60,7 +60,7 @@ export function useAscMutations() {
   }, [dispatch, refreshLists]);
   const fail = useCallback((e) => { toast((e && e.message ? e.message + ' ' : '') + 'Your change was not saved.', { error: true }); throw e; }, [toast]);
 
-  const createContact = useCallback((body) => source.createContact(body).then((k) => { dispatch({ type: 'records', records: { contacts: [k] } }); refreshLists(); return k; }, fail), [source, dispatch, refreshLists, fail]);
+  const createContact = useCallback((body) => source.createContact(body).then((k) => { dispatch({ type: 'records', records: { contacts: [k] } }); refreshLists(); if (body.clientId) dispatch({ type: 'invalidate', prefix: 'client:' + body.clientId }); return k; }, fail), [source, dispatch, refreshLists, fail]);
   // Shows the change at once; the server's answer (which can add follow-ups) replaces it. A failure rolls back.
   // `kept`: the caller keeps the change on screen to send again, so a dropped connection isn't announced as lost.
   const updateContact = useCallback((k, patch, opts = {}) => {
@@ -138,4 +138,41 @@ export function useContactEditor(contact) {
 
   const view = useMemo(() => (contact ? mergePatch(contact, pending) : null), [contact, pending]);
   return { view, edit, flush, status };
+}
+
+// ------------------------------------------------------------------ supervisor tools and close-outs
+export function useTeamWork(enabled = true) {
+  const { source } = useApi();
+  const query = useQuery(enabled ? 'asc-team' : null, () => source.getTeamWork().then((data) => ({ data })));
+  return { query, team: query.data || { staff: [] } };
+}
+export function useCloseouts() {
+  const { source } = useApi();
+  const query = useQuery('asc-closeouts', () => source.listCloseouts().then((data) => ({ data })));
+  return { query, closeouts: query.data || [] };
+}
+export function useStateReport(period, enabled = true) {
+  const { source } = useApi();
+  const query = useQuery(enabled && period ? 'asc-report:' + period : null, () => source.getStateReport(period).then((data) => ({ data })));
+  return { query, report: query.data || null };
+}
+
+export function useSupervisorMutations() {
+  const { source, dispatch, toast } = useApi();
+  const refresh = useCallback(() => ['asc-team', 'asc-closeouts', 'asc-report:', 'contacts:', 'history:'].forEach((prefix) => dispatch({ type: 'invalidate', prefix })), [dispatch]);
+  const fail = useCallback((e) => { toast((e && e.message ? e.message + ' ' : '') + 'Nothing was changed.', { error: true }); throw e; }, [toast]);
+  const discharged = useCallback((r) => {
+    dispatch({ type: 'records', records: { clients: r.client ? [r.client] : undefined, notes: r.notes, removeActions: r.removeActions } });
+    refresh();
+    ['notes:', 'actions:', 'myNotes', 'myActions'].forEach((prefix) => dispatch({ type: 'invalidate', prefix }));
+    return r;
+  }, [dispatch, refresh]);
+  return {
+    reassign: useCallback((body) => source.reassign(body).then((r) => { dispatch({ type: 'records', records: { contacts: r.contacts, actions: r.actions } }); refresh(); toast(r.moved === 1 ? '1 item reassigned' : r.moved + ' items reassigned'); return r; }, fail), [source, dispatch, refresh, toast, fail]),
+    requestCloseout: useCallback((clientId, body) => source.requestCloseout(clientId, body).then((r) => { refresh(); toast('Close-out sent to a supervisor'); return r; }, fail), [source, refresh, toast, fail]),
+    withdrawCloseout: useCallback((id) => source.withdrawCloseout(id).then((r) => { refresh(); toast('Close-out request withdrawn'); return r; }, fail), [source, refresh, toast, fail]),
+    decideCloseout: useCallback((id, body) => source.decideCloseout(id, body).then((r) => { discharged(r); toast(body.decision === 'discharge' ? 'Discharged from ASC' : 'Close-out declined'); return r; }, fail), [source, discharged, toast, fail]),
+    dischargeClient: useCallback((clientId, body) => source.dischargeClient(clientId, body).then((r) => { discharged(r); toast('Discharged from ASC'); return r; }, fail), [source, discharged, toast, fail]),
+    submitStateReport: useCallback((period) => source.submitStateReport(period).then((r) => { refresh(); toast('Report marked submitted'); return r; }, fail), [source, refresh, toast, fail])
+  };
 }

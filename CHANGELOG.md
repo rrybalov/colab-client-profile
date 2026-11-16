@@ -2,6 +2,36 @@
 
 Each version is kept on an `archive/` branch. See "Versions and rolling back" in the README.
 
+## v4.3: Supervisor tools and close-outs
+
+**ASC pages.** The ASC home has tabs: Contacts, Close-Outs, and, for supervisors, Team and State Reporting (`#asc/closeouts`, `#asc/team`, `#asc/reporting`). Close-Outs shows how many requests are waiting.
+
+**Close-outs (coordinators).** Request Close-Out on a client's ASC tab asks a supervisor to discharge them:
+- It needs a reason (needs met, connected to ongoing services, declined, unable to reach, moved, other) and takes a note.
+- The dialog lists what's still open for the client first.
+- The request waits; nothing changes until a supervisor decides. The person who asked can withdraw it.
+
+**Discharge (supervisors).** From the Close-Outs queue, a supervisor discharges or declines (declining needs a note for the coordinator). Supervisors can also discharge directly from a client's ASC tab. Discharge:
+- Ends the ASC enrollment and removes ASC from the client's CoLabs.
+- Removes 7-day and 90-day follow-ups that haven't happened. Other action items stay.
+- Writes an ASC case note and ends the ASC row on the Services tab.
+- Can't happen while a contact is in progress.
+
+The ASC tab stays on a discharged client's profile with the discharge details, and a new contact started there re-enrolls them.
+
+**Reassignment (supervisors).** Team lists each person's contacts in progress and open ASC action items (overdue ones marked). Select some or all and reassign them to someone else. Each moved contact logs "Reassigned from … to …".
+
+**State reporting (supervisors).** Pick a month to see every service line that would go to the state: one line per interaction on a closed contact with a verified client, with MCI ID, date, procedure code, units, place and coordinator.
+- Lines that would be rejected are flagged: no interactions, missing minutes or place, no state service code, or the client's date of birth or gender missing.
+- Contacts in progress, anonymous and name-only contacts are counted but not sent.
+- Download CSV, then Mark as Submitted, which is blocked while any line has a problem.
+- If a submitted month's contacts are corrected later, the page says which ones and asks for a resubmission.
+- The prototype doesn't send anything to the state itself.
+
+**Sample data.** One close-out request waits for a supervisor, and one October contact uses an interaction type with no state code yet, so the report has a problem to review.
+
+**Fixed.** Overview lists both ASC enrollments when someone has been discharged and re-enrolled.
+
 ## v4.2: CoLab navigation, contact records, flags and follow-through
 
 **Navigation.** The CoLab menu in the sidebar now takes you to that CoLab's home page instead of filtering every page:

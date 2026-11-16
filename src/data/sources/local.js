@@ -3,7 +3,7 @@
 import * as api from '../backend.js';
 import { buildSeed, enrich, SEED_VERSION } from '../seed.js';
 import { seedAsc } from '../asc-seed.js';
-import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange } from '../schema.js';
+import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange, normalizeTeam, normalizeReassign, normalizeCloseout, normalizeDischarge, normalizeReport } from '../schema.js';
 
 const KEY = 'colab.db';
 
@@ -89,6 +89,15 @@ export function createLocalSource() {
     finishCorrection: (id) => run((d) => api.finishCorrection(d, id), true).then(contactChange),
     switchUser: (userId) => run((d) => api.switchUser(d, { userId }), true),
     lookupContact: (ref) => run((d) => api.lookupContact(d, ref)).then(normalizeContactSummary),
-    getContactHistory: (q) => run((d) => api.contactHistory(d, q)).then(normalizeHistory)
+    getContactHistory: (q) => run((d) => api.contactHistory(d, q)).then(normalizeHistory),
+    getTeamWork: () => run((d) => api.teamWork(d)).then(normalizeTeam),
+    reassign: (body) => run((d) => api.reassign(d, body), true).then(normalizeReassign),
+    listCloseouts: () => run((d) => api.listCloseouts(d)).then((l) => l.map(normalizeCloseout)),
+    requestCloseout: (clientId, body) => run((d) => api.requestCloseout(d, clientId, body), true).then(normalizeCloseout),
+    withdrawCloseout: (id) => run((d) => api.cancelCloseout(d, id), true).then(normalizeCloseout),
+    decideCloseout: (id, body) => run((d) => api.decideCloseout(d, id, body), true).then(normalizeDischarge),
+    dischargeClient: (clientId, body) => run((d) => api.dischargeClient(d, clientId, body), true).then(normalizeDischarge),
+    getStateReport: (period) => run((d) => api.stateReport(d, period)).then(normalizeReport),
+    submitStateReport: (period) => run((d) => api.submitReport(d, period), true).then(normalizeReport)
   };
 }

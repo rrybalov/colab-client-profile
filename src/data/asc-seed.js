@@ -93,6 +93,19 @@ export function seedAsc(db, t) {
     }
   });
 
+  // A second call from an enrolled client, about a support group. That interaction type has no state service code yet, so the
+  // monthly state report flags the line for a supervisor to fix.
+  if (clientById.c33) {
+    const x = blankContact('k172', 172, t);
+    x.startedAt = at(t, -20, 15, 10); x.endedAt = later(x.startedAt, 9);
+    x.staff = 'u6'; x.clientId = 'c33'; x.identity = 'matched'; x.path = 'client'; x.closedKind = 'client';
+    x.intake.age = 'Adult, 18–59'; x.intake.story = 'Asked about peer support groups while waiting for counseling to start.';
+    x.needs = [{ id: 'n1', name: 'Mental health, adult', urg: 'Routine', outcome: 'Information given', outcomeNote: '' }];
+    x.interactions = [ix('i1', 'Peer support groups near Mercy', 'Mental health, adult', 'Information and resources [code TBD]', 'Explained by phone', 7, 'Telephone [code TBD]')];
+    x.followUp = { ok: 'Yes', how: 'Phone call', time: '' };
+    contacts.push(x);
+  }
+
   // Maria Ruiz called twice without sharing her son's information.
   const maria = (n, days, h, staff, need, urg, outcome, list, note) => {
     const x = blankContact('k' + n, n, t);

@@ -112,6 +112,12 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 | `links` | `[{ actionId, ixId, auto }]`: action items made from this contact. `ixId` is the interaction a reminder came from; `auto` is `d7` or `d90` for the automatic follow-ups. |
 | `client`, `candidate`, `possibleLinks` | Read-only, added by the server: summaries of the client, the candidate, and earlier anonymous contacts that may be the same person. |
 
+**CloseoutRequest** `{ id, clientId, by, at, reason, note, status: pending/discharged/declined/withdrawn, decidedBy, decidedAt, decisionNote }`, plus read-only `client` (summary), `byName`, `decidedByName`, `openContacts`, `openActions`, `openNeeds[]` and `lastContact`. `reason` is one of: Needs met, Connected to ongoing services, Declined further services, Unable to reach, Moved out of county, Other.
+
+**Client** gains `ascDischarge: { by, at, reason, note } | null` once a supervisor discharges them. Discharge sets the ASC enrollment to `kind: "inactive", status: "Discharged"` with an end date; re-enrolling clears `ascDischarge` and adds a new active enrollment.
+
+**StateReport** `{ period: "YYYY-MM", rows, totals, notSent, submission }`. `rows` are `[{ id, contactId, ref, clientId, clientName, mci, code, date, units, place, coordinator, problems[] }]`, one per interaction on a closed contact with a verified client started in that month. `totals` is `{ contacts, clients, rows, units, problems }`; `notSent` is `{ open, anonymous, unverified }`; `submission` is `{ by, byName, at, rows, units, contacts, version, changedSince[] } | null`, where `changedSince` lists Event IDs corrected after it was marked submitted.
+
 **ContactSummary** (lists) `{ id, ref, channel, site, startedAt, endedAt, status, closedKind, staff, clientId, identity, path, clientName, anonName, needs: [{ name, urg, outcome }], ixCount, ixMin, ixUnits }`
 
 ## Endpoints
@@ -139,7 +145,7 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 | `POST /reports` | `{ id }` (201) | Report Missing Client (`kind: "missing"`) and Report an Issue (`kind: "issue"`). Stores the form fields and the page they came from (`page`). |
 | `GET /clients/search?…&dob=&zip=` | as above | ASC adds `dob` (`yyyy-mm-dd` or `mm/dd/yyyy`, exact) and `zip` (prefix). |
 | `GET /asc/contacts?status=&clientId=` | `ContactSummary[]` | Newest first. Both filters optional. |
-| `POST /asc/contacts` | `Contact` (201) | Body `{ channel, clientId? }`. Starts the clock and assigns `ref` and `logId`. With `clientId` (started from a client's ASC tab) the client must already be in ASC. |
+| `POST /asc/contacts` | `Contact` (201) | Body `{ channel, clientId? }`. Starts the clock and assigns `ref` and `logId`. With `clientId` (started from a client's ASC tab) the client must be in ASC or discharged from it; a discharged client is re-enrolled. |
 | `GET /asc/contacts/lookup?ref=` | `ContactSummary` | A returning caller's reference number; the digits are enough. `404` if none. |
 | `GET /asc/contacts/:id` | `Contact` | |
 | `PATCH /asc/contacts/:id` | `{ contact, notes, actions, removeActions }` | Body: any of `intake`, `screening`, `followUp`, `onsite`, `anon` (merged one level deep); `needs`, `interactions`, `notes`, `actions` (replaced whole); `channel`, `site`, `path`, `candidateId`, `unverifiedName`, `identity: "unverified"|null`, `linkedPrior: "linked"|"no"`, `priorRef` (attach a returning caller's earlier contacts), and the link operations `addLinks: [{ actionId, ixId }]`, `removeLinks: [actionId]`, `dropIxLinks: ixId`. The server keeps the two automatic follow-ups in step with `followUp` and returns the client action items it created or removed. |
@@ -148,6 +154,16 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 | `POST /asc/contacts/:id/correction` | `{ contact, notes }` | Supervisors only (`403` otherwise). Body `{ reason }` (required). Unlocks a closed contact's answers: intake, screening, needs, interactions, follow-up, on-site steps, anonymous details, site and channel. Who the contact is (client, identity, links) can't change. |
 | `POST /asc/contacts/:id/correction/finish` | `{ contact, notes }` | Supervisors only. Every need still needs an outcome. Logs `{ by, at, reason, changed }` in `corrections` and writes a case note: `ASC correction to EV-…`, the reason, what changed and the updated summary. |
 | `GET /asc/history?contactId=` or `?clientId=` | `{ openItems, contacts }` | What a coordinator sees when someone comes back: open needs and open ASC action items first, then each earlier contact with who handled it, its needs and outcomes, interactions, screening and notes. Each open item carries what it came from (`need`, `contactId`, `ref`, `actionId`, `clientId`) so a screen can act on it; each contact carries `record`, the full contact with its `log`. |
+
+| `GET /asc/closeouts` | `CloseoutRequest[]` | Newest first. Everyone can read them; the app shows coordinators their own. |
+| `POST /clients/:id/asc/closeout` | `CloseoutRequest` (201) | Body `{ reason, note }`. The client must be enrolled; one request can wait at a time (`400` otherwise). |
+| `POST /asc/closeouts/:id/withdraw` | `CloseoutRequest` | The person who asked, or a supervisor. Only while `pending`. |
+| `POST /asc/closeouts/:id/decide` | `{ closeout, client, notes, removeActions }` | Supervisors only. Body `{ decision: "discharge"|"decline", note }`; declining needs a `note`. Discharging does what `discharge` does, with the request's reason. |
+| `POST /clients/:id/asc/discharge` | `{ client, notes, removeActions }` | Supervisors only. Body `{ reason, note }`. `400` while a contact is in progress. Ends the enrollment, removes `ASC` from `colabs`, deletes 7-day and 90-day follow-ups that aren't done (their ids in `removeActions`), marks any pending request `discharged`, writes an ASC case note and updates the Services row. |
+| `GET /asc/team` | `{ staff: [{ id, name, role, contacts: ContactSummary[], actions: [{ id, text, due, clientId, contactId, where }] }] }` | Supervisors only. Each ASC staff member's contacts in progress and open ASC action items (on client records, or on anonymous contacts with `contactId`). |
+| `POST /asc/reassign` | `{ contacts, actions, moved }` | Supervisors only. Body `{ to, contactIds[], actionIds[] }`. Moves contacts (logged on each) and action items to `to`. Returns what changed. |
+| `GET /asc/reports/:period` | `StateReport` | Supervisors only. `period` is `YYYY-MM`. |
+| `POST /asc/reports/:period/submit` | `StateReport` | Supervisors only. Records that the file was sent; `400` if there are no lines or any line has problems. Submitting again bumps `version`. |
 
 **Automatic follow-ups.** When a contact has a client and `followUp.ok` is `Yes`, the server creates two action items, tagged `ASC` and assigned to the contact's coordinator: a follow-up 7 business days after the contact (weekends skipped) and a check-in 90 days after, moved to Monday if it lands on a weekend. Changing the way to reach them rewrites the first one's text; answering `No` deletes any that aren't done. County holidays are not skipped yet [not decided].
 
@@ -162,4 +178,4 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 - Paging for very long note or action-item lists. Today each client's list comes back whole.
 - Who may see restricted notes. The server should filter them; the app shows whatever it receives.
 - Choosing a CoLab tag for a new note or action item. The design has no control for it yet, so new ones are `PERSONAL`, except during an ASC contact, where they are `ASC`.
-- ASC: real service codes and place-of-service codes (shown as `[code TBD]`), the state's unit rounding rule, county holidays in the 7-day follow-up, consent forms and document scanning (the prototype records that they happened), and the referral step that follows intake.
+- ASC: the state's file format for the monthly report (the CSV columns are a placeholder) and how it's sent, real service codes and place-of-service codes (shown as `[code TBD]`), the state's unit rounding rule, county holidays in the 7-day follow-up, consent forms and document scanning (the prototype records that they happened), and the referral step that follows intake.

@@ -10,6 +10,7 @@ import { plural, CHANNELS } from '../../data/asc.js';
 import { sortRows } from '../../lib.js';
 import { SearchLaunch } from '../hub/HubShell.jsx';
 import { channelIcon, channelLabel, personLabel, StatusPill, whenText } from './parts.jsx';
+import { AscNav, CloseoutsPage, TeamPage, ReportingPage } from './Supervisor.jsx';
 
 // Contact type and coordinator are their own columns, so they can be sorted and filtered.
 const COLS = [
@@ -49,7 +50,14 @@ function Row({ k }) {
   );
 }
 
-export function AscHome() {
+const SUBPAGES = { closeouts: CloseoutsPage, team: TeamPage, reporting: ReportingPage };
+
+export function AscHome({ route }) {
+  const Sub = route && SUBPAGES[route.sub];
+  return Sub ? <Sub /> : <Contacts />;
+}
+
+function Contacts() {
   const { me, staffName } = useSession();
   const { query, contacts: raw } = useContacts({});
   const [chosen, setFilter] = usePref('asc.filter', null);
@@ -71,6 +79,7 @@ export function AscHome() {
   return (
     <>
       <div className="page-head"><h1 className="page-title"><Icon name="headset" size={28} />ASC Contacts</h1><SearchLaunch /></div>
+      <AscNav current="" />
       <section className="panel-card asc-launch" aria-labelledby="asc-start-h">
         <div className="card-head">
           <h2 className="card-title" id="asc-start-h">Administrative Service Coordination</h2>

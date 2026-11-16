@@ -2,7 +2,8 @@
 // follow-ups, and contact history. Like backend.js, these run in the browser's sample-data source and in
 // tools/mock-api.mjs. docs/API.md describes the endpoints.
 import { NotFound, BadRequest, Forbidden, summary, fullRecord, newId, createNote } from './backend.js';
-import { followUpPlan, SCREENING, totals, plural, summaryNote, isSummaryNote, LEGACY, OPEN, CRISIS, SUPERVISOR, addBusinessDays, dayOf, shown } from './asc.js';
+import { followUpPlan, SCREENING, totals, plural, summaryNote, isSummaryNote, LEGACY, OPEN, CRISIS, SUPERVISOR, addBusinessDays, dayOf, shown, DISCHARGE_REASONS } from './asc.js';
+const DISCHARGE_REASONS_SET = new Set(DISCHARGE_REASONS);
 import { describePatch, appendLog, backfillLog } from './asc-log.js';
 import { ASC_ENROLLMENT } from './asc-seed.js';
 
@@ -11,7 +12,7 @@ const usOf = (d) => pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + '/' + d.get
 const findContact = (db, id) => { const k = (db.contacts || []).find((x) => x.id === id); if (!k) throw new NotFound('Contact'); return k; };
 const findClient = (db, id) => { const c = db.clients.find((x) => x.id === id); if (!c) throw new NotFound('Client'); return c; };
 const clone = (v) => JSON.parse(JSON.stringify(v));
-const ensure = (db) => { if (!db.contacts) db.contacts = []; if (!db.contactSeq) db.contactSeq = 184; if (db.ascModel !== 3) migrate(db); };
+const ensure = (db) => { if (!db.contacts) db.contacts = []; if (!db.contactSeq) db.contactSeq = 184; if (db.ascModel !== 4) migrate(db); };
 
 // v4.1 renamed outcomes, merged screening's "Not sure" and "Prefers not to say" into "Skip", shortened the safety
 // answer and added roles. Stored data is upgraded once, in place.
@@ -28,7 +29,17 @@ function migrate(db) {
   });
   (db.staff || []).forEach((s) => { if (!s.role && ROLES[s.id]) s.role = ROLES[s.id]; });
   (db.clients || []).forEach((c) => syncAscService(db, c));
-  db.ascModel = 3;
+  if (!db.closeouts) seedCloseout(db); // v4.3: one request waiting, so the supervisor's queue isn't empty
+  db.ascModel = 4;
+}
+function seedCloseout(db) {
+  db.closeouts = [];
+  const done = (db.clients || []).find((c) => c.id !== 'c65' && (c.enrollments || []).some((e) => e.name === ASC_ENROLLMENT && e.kind === 'active')
+    && (db.contacts || []).some((k) => k.clientId === c.id) && (db.contacts || []).every((k) => k.clientId !== c.id || (k.status === 'closed' && k.needs.every((n) => n.outcome !== OPEN))));
+  if (!done) return;
+  const k = db.contacts.filter((x) => x.clientId === done.id).sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1))[0];
+  db.closeouts.push({ id: 'co1', clientId: done.id, by: k.staff, at: new Date(Date.now() - 26 * 3600000).toISOString(), reason: 'Needs met',
+    note: 'Connected and confirmed at the follow-up call. Nothing else they need from us.', status: 'pending', decidedBy: '', decidedAt: '', decisionNote: '' });
 }
 const me = (db) => (db.staff || []).find((s) => s.id === db.userId) || {};
 const isSupervisor = (db) => me(db).role === SUPERVISOR;
@@ -88,9 +99,12 @@ export function createContact(db, body = {}) {
   appendLog(k, [{ key: 'start', text: channel === 'person' ? 'Started an in-person visit at ' + k.site : 'Started a phone call' }], db.userId);
   if (body.clientId) {
     const c = findClient(db, body.clientId);
-    if (c.colabs.indexOf('ASC') < 0) throw new BadRequest('This client is not enrolled in ASC.');
+    if (c.colabs.indexOf('ASC') < 0 && !c.ascDischarge) throw new BadRequest('This client is not enrolled in ASC.');
+    const back = !!c.ascDischarge;
+    enroll(c); // a discharged client who comes back is re-enrolled
     Object.assign(k, { clientId: c.id, identity: 'matched', path: 'client' });
-    appendLog(k, [{ key: 'identity', text: 'Started from ' + c.first + ' ' + c.last + '’s record' }], db.userId);
+    appendLog(k, [{ key: 'identity', text: 'Started from ' + c.first + ' ' + c.last + '’s record' + (back ? ', re-enrolled in ASC' : '') }], db.userId);
+    syncAscService(db, c);
   }
   db.contacts.unshift(k);
   return full(db, k);
@@ -232,6 +246,16 @@ const MCI = (db) => 'R' + String(1100000000 + db.clients.length * 7919 + db.cont
 
 // Puts the contact on a client's record: an existing client (`clientId`) or one registered now (`newClient`).
 // Enrolls the client in ASC, moves the contact's notes and action items over, and schedules follow-ups.
+// Enrolls a client in ASC if they aren't already. Coming back after a discharge re-enrolls them.
+function enroll(c) {
+  const today = usOf(new Date());
+  if (c.colabs.indexOf('ASC') < 0) c.colabs.push('ASC');
+  if (c.ascDischarge) c.ascDischarge = null;
+  if (!(c.enrollments || []).some((e) => e.name === ASC_ENROLLMENT && e.kind === 'active')) {
+    c.enrollments = (c.enrollments || []).concat([{ name: ASC_ENROLLMENT, kind: 'active', status: 'Active', pct: 0, start: today, end: 'Ongoing', asOf: 'As of ' + today + ' | Today', stale: false }]);
+  }
+}
+
 export function linkContact(db, id, body = {}) {
   ensure(db);
   const k = findContact(db, id);
@@ -257,11 +281,7 @@ export function linkContact(db, id, body = {}) {
     identity = 'new';
   } else throw new BadRequest('Choose a client or register a new one.');
 
-  const today = usOf(new Date());
-  if (c.colabs.indexOf('ASC') < 0) c.colabs.push('ASC');
-  if (!(c.enrollments || []).some((e) => e.name === ASC_ENROLLMENT && e.kind === 'active')) {
-    c.enrollments = (c.enrollments || []).concat([{ name: ASC_ENROLLMENT, kind: 'active', status: 'Active', pct: 0, start: today, end: 'Ongoing', asOf: 'As of ' + today + ' | Today', stale: false }]);
-  }
+  enroll(c);
   Object.assign(k, { clientId: c.id, identity, path: 'client', candidateId: null, unverifiedName: '' });
   // Earlier calls tied by the caller's reference number are theirs by definition.
   const earlier = { notes: [], actions: [] };
@@ -282,11 +302,13 @@ export function linkContact(db, id, body = {}) {
 const ASC_SERVICE = 'Administrative Service Coordination';
 const ASC_PROVIDER = 'DHS ASC';
 export function syncAscService(db, c) {
-  if (!c || c.colabs.indexOf('ASC') < 0) return;
+  if (!c || !(c.enrollments || []).some((e) => e.name === ASC_ENROLLMENT)) return;
   const mine = db.contacts.filter((x) => x.clientId === c.id).sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
-  const enroll = (c.enrollments || []).find((e) => e.name === ASC_ENROLLMENT);
-  const first = enroll ? enroll.start : mine.length ? usOf(new Date(mine[0].startedAt)) : usOf(new Date());
-  const last = mine.length ? usOf(new Date(mine[mine.length - 1].startedAt)) : first;
+  const all = (c.enrollments || []).filter((e) => e.name === ASC_ENROLLMENT);
+  const toKey = (us) => (us ? us.slice(6) + us.slice(0, 2) + us.slice(3, 5) : '');
+  const first = all.map((e) => e.start).sort((a, b) => (toKey(a) < toKey(b) ? -1 : 1))[0] || (mine.length ? usOf(new Date(mine[0].startedAt)) : usOf(new Date()));
+  const dates = mine.map((x) => usOf(new Date(x.startedAt))).concat(c.ascDischarge ? [usOf(new Date(c.ascDischarge.at))] : []);
+  const last = dates.sort((a, b) => (toKey(a) < toKey(b) ? -1 : 1)).pop() || first;
   c.services = (c.services || []).filter((s) => s.id !== 'asc');
   c.services.unshift({ id: 'asc', service: ASC_SERVICE, area: 'Service Coordination', program: 'Service Coordination', first, last, added: first, all: [ASC_PROVIDER], grouped: [ASC_PROVIDER] });
   c.instances = (c.instances || []).filter((i) => i.service !== ASC_SERVICE).concat(mine.map((x) => {
@@ -435,4 +457,184 @@ export function contactHistory(db, q = {}) {
       totalsText: plural(x.interactions.length, 'interaction', 'interactions')
     }))
   };
+}
+
+// ================================================================== supervisor tools
+const requireSupervisor = (db) => { if (!isSupervisor(db)) throw new Forbidden('Only an ASC supervisor can do this.'); };
+const ascStaff = (db) => (db.staff || []).filter((s) => s.role === 'ASC Coordinator' || s.role === SUPERVISOR);
+const activeEnrollment = (c) => (c.enrollments || []).find((e) => e.name === ASC_ENROLLMENT && e.kind === 'active');
+const isoDay = (iso) => (iso ? iso.slice(5, 7) + '/' + iso.slice(8, 10) + '/' + iso.slice(0, 4) : '');
+
+// ------------------------------------------------------------------ reassignment
+// Everyone's open ASC work: contacts in progress and open ASC action items (on client records and on anonymous
+// contacts), so a supervisor can move it when someone is out or leaves.
+export function teamWork(db) {
+  ensure(db); requireSupervisor(db);
+  const name = (id) => { const c = db.clients.find((x) => x.id === id); return c ? clientName(c) : ''; };
+  return {
+    staff: ascStaff(db).map((s) => {
+      const contacts = db.contacts.filter((k) => k.staff === s.id && k.status === 'open').map((k) => contactSummary(db, k));
+      const actions = db.actions.filter((a) => a.assignee === s.id && a.tag === 'ASC' && !a.done).map((a) => ({ id: a.id, text: a.text, due: a.due, clientId: a.clientId, where: name(a.clientId) }))
+        .concat(...db.contacts.map((k) => k.actions.filter((a) => a.assignee === s.id && !a.done).map((a) => ({ id: a.id, text: a.text, due: a.due, clientId: '', contactId: k.id, where: k.ref }))));
+      actions.sort((a, b) => ((a.due || '9') < (b.due || '9') ? -1 : 1));
+      return { id: s.id, name: s.first + ' ' + s.last, role: s.role, contacts, actions };
+    })
+  };
+}
+
+export function reassign(db, body = {}) {
+  ensure(db); requireSupervisor(db);
+  const to = ascStaff(db).find((s) => s.id === body.to);
+  if (!to) throw new BadRequest('Choose who to reassign to.');
+  const contactIds = Array.isArray(body.contactIds) ? body.contactIds : [];
+  const actionIds = Array.isArray(body.actionIds) ? body.actionIds : [];
+  if (!contactIds.length && !actionIds.length) throw new BadRequest('Choose at least one contact or action item.');
+  const contacts = [], actions = [];
+  contactIds.forEach((id) => {
+    const k = findContact(db, id);
+    if (k.staff === to.id) return;
+    const from = staffLabel(db, k.staff);
+    k.staff = to.id;
+    appendLog(k, [{ key: 'reassign', text: 'Reassigned from ' + from + ' to ' + to.first + ' ' + to.last }], db.userId);
+    contacts.push(full(db, k));
+  });
+  actionIds.forEach((id) => {
+    const a = db.actions.find((x) => x.id === id);
+    if (a) { a.assignee = to.id; actions.push(clone(a)); return; }
+    const k = db.contacts.find((x) => x.actions.some((y) => y.id === id));
+    if (!k) throw new NotFound('Action item');
+    k.actions.find((y) => y.id === id).assignee = to.id;
+    if (!contacts.some((c) => c.id === k.id)) contacts.push(full(db, k));
+  });
+  return { contacts, actions, moved: contacts.length + actions.length };
+}
+
+// ------------------------------------------------------------------ close-out requests and discharge
+function closeoutView(db, r) {
+  const c = findClient(db, r.clientId);
+  const contacts = db.contacts.filter((k) => k.clientId === c.id);
+  const openNeeds = [...new Set(contacts.flatMap((k) => k.needs.filter((n) => n.outcome === OPEN).map((n) => n.name)))];
+  return {
+    ...r, client: summary(c), byName: staffLabel(db, r.by), decidedByName: r.decidedBy ? staffLabel(db, r.decidedBy) : '',
+    openContacts: contacts.filter((k) => k.status === 'open').length,
+    openActions: db.actions.filter((a) => a.clientId === c.id && a.tag === 'ASC' && !a.done).length,
+    openNeeds, lastContact: contacts.length ? contacts.map((k) => k.startedAt).sort().pop() : ''
+  };
+}
+
+export function listCloseouts(db) {
+  ensure(db);
+  return (db.closeouts || []).slice().sort((a, b) => (a.at < b.at ? 1 : -1)).map((r) => closeoutView(db, r));
+}
+
+// A coordinator asks for a client to be closed out; it waits in the supervisor's queue.
+export function requestCloseout(db, clientId, body = {}) {
+  ensure(db);
+  const c = findClient(db, clientId);
+  if (!activeEnrollment(c)) throw new BadRequest(c.first + ' isn’t enrolled in ASC.');
+  if ((db.closeouts || []).some((r) => r.clientId === c.id && r.status === 'pending')) throw new BadRequest('A close-out is already waiting for a supervisor.');
+  const reason = DISCHARGE_REASONS_SET.has(body.reason) ? body.reason : '';
+  if (!reason) throw new BadRequest('Choose a reason.');
+  const r = { id: newId('co'), clientId: c.id, by: db.userId, at: new Date().toISOString(), reason, note: text(body.note, 2000), status: 'pending', decidedBy: '', decidedAt: '', decisionNote: '' };
+  db.closeouts = (db.closeouts || []).concat([r]);
+  return closeoutView(db, r);
+}
+
+export function cancelCloseout(db, id) {
+  ensure(db);
+  const r = (db.closeouts || []).find((x) => x.id === id);
+  if (!r) throw new NotFound('Close-out request');
+  if (r.status !== 'pending') throw new BadRequest('This request has already been decided.');
+  if (r.by !== db.userId && !isSupervisor(db)) throw new Forbidden('Only the person who asked, or a supervisor, can withdraw it.');
+  r.status = 'withdrawn'; r.decidedBy = db.userId; r.decidedAt = new Date().toISOString();
+  return closeoutView(db, r);
+}
+
+export function decideCloseout(db, id, body = {}) {
+  ensure(db); requireSupervisor(db);
+  const r = (db.closeouts || []).find((x) => x.id === id);
+  if (!r) throw new NotFound('Close-out request');
+  if (r.status !== 'pending') throw new BadRequest('This request has already been decided.');
+  if (body.decision === 'decline') {
+    const note = text(body.note, 2000).trim();
+    if (!note) throw new BadRequest('Say why, so the coordinator knows what to do next.');
+    Object.assign(r, { status: 'declined', decidedBy: db.userId, decidedAt: new Date().toISOString(), decisionNote: note });
+    return { closeout: closeoutView(db, r), client: fullRecord(findClient(db, r.clientId)), removeActions: [] };
+  }
+  if (body.decision !== 'discharge') throw new BadRequest('Choose discharge or decline.');
+  const out = dischargeClient(db, r.clientId, { reason: r.reason, note: body.note || r.note });
+  return { ...out, closeout: closeoutView(db, (db.closeouts || []).find((x) => x.id === id)) };
+}
+
+// Ends ASC enrollment. Scheduled 7-day and 90-day follow-ups that haven't happened are removed; other action items
+// stay. Any pending close-out request for the client is marked discharged. They're re-enrolled if they come back.
+export function dischargeClient(db, clientId, body = {}) {
+  ensure(db); requireSupervisor(db);
+  const c = findClient(db, clientId);
+  const e = activeEnrollment(c);
+  if (!e) throw new BadRequest(c.first + ' isn’t enrolled in ASC.');
+  if (db.contacts.some((k) => k.clientId === c.id && k.status === 'open')) throw new BadRequest('Close the contact in progress before discharging.');
+  const reason = DISCHARGE_REASONS_SET.has(body.reason) ? body.reason : '';
+  if (!reason) throw new BadRequest('Choose a reason.');
+  const now = new Date();
+  const today = usOf(now);
+  Object.assign(e, { kind: 'inactive', status: 'Discharged', end: today, pct: 100, asOf: 'Discharged ' + today + ': ' + reason });
+  c.colabs = c.colabs.filter((x) => x !== 'ASC');
+  c.ascDischarge = { by: db.userId, at: now.toISOString(), reason, note: text(body.note, 2000) };
+  const removed = [];
+  db.contacts.filter((k) => k.clientId === c.id).forEach((k) => {
+    k.links.filter((l) => l.auto).forEach((l) => {
+      const i = db.actions.findIndex((a) => a.id === l.actionId && !a.done);
+      if (i >= 0) { db.actions.splice(i, 1); removed.push(l.actionId); }
+    });
+    k.links = k.links.filter((l) => !l.auto || removed.indexOf(l.actionId) < 0);
+  });
+  (db.closeouts || []).filter((r) => r.clientId === c.id && r.status === 'pending').forEach((r) => Object.assign(r, { status: 'discharged', decidedBy: db.userId, decidedAt: now.toISOString(), decisionNote: text(body.note, 2000) }));
+  createNote(db, c.id, { tag: 'ASC', author: db.userId, text: 'Discharged from ASC, ' + today + ', ' + staffLabel(db, db.userId) + '.\nReason: ' + reason + (body.note ? '\n' + text(body.note, 2000) : '') + (removed.length ? '\nRemoved ' + plural(removed.length, 'scheduled follow-up', 'scheduled follow-ups') + '.' : '') });
+  syncAscService(db, c);
+  return { client: fullRecord(c), removeActions: removed, notes: db.notes.filter((n) => n.clientId === c.id).slice(0, 1) };
+}
+
+// ------------------------------------------------------------------ state reporting
+// One month of ASC services for the state: every interaction on a closed contact with a client verified in MCI,
+// with anything that would stop it being accepted. Open, anonymous and name-only contacts are counted, not sent.
+export function stateReport(db, period) {
+  ensure(db); requireSupervisor(db);
+  if (!/^\d{4}-\d{2}$/.test(String(period || ''))) throw new BadRequest('Choose a month.');
+  const inMonth = db.contacts.filter((k) => dayOf(k.startedAt).slice(0, 7) === period);
+  const sent = inMonth.filter((k) => k.status === 'closed' && k.clientId && k.identity !== 'unverified');
+  const rows = [];
+  sent.forEach((k) => {
+    const c = findClient(db, k.clientId);
+    const clientProblems = [];
+    if (!c.dob) clientProblems.push('Date of birth missing');
+    if (!c.gender) clientProblems.push('Gender missing');
+    if (!k.interactions.length) rows.push({ id: k.id + '-none', contactId: k.id, ref: k.ref, clientId: c.id, clientName: clientName(c), mci: c.mci, code: '', date: isoDay(dayOf(k.startedAt)), units: 0, place: '', coordinator: staffLabel(db, k.staff), problems: ['No interactions documented'].concat(clientProblems) });
+    k.interactions.forEach((x) => {
+      const problems = clientProblems.slice();
+      const units = Number(x.min) > 0 ? Math.max(1, Math.round(Number(x.min) / 15)) : 0;
+      if (!units) problems.push('Minutes missing');
+      if (!x.place) problems.push('Place of service missing');
+      const code = /T1016\w+/.exec(x.type || '');
+      if (!code) problems.push('Service code not set for “' + shown(x.type) + '”');
+      rows.push({ id: k.id + '-' + x.id, contactId: k.id, ref: k.ref, clientId: c.id, clientName: clientName(c), mci: c.mci, code: code ? code[0] : '', date: isoDay(dayOf(k.startedAt)), units, place: shown(x.place), coordinator: staffLabel(db, k.staff), problems });
+    });
+  });
+  const saved = (db.ascReports || {})[period] || null;
+  const changed = saved ? sent.filter((k) => (k.corrections || []).some((x) => x.at > saved.at)).map((k) => k.ref) : [];
+  return {
+    period, rows,
+    totals: { contacts: sent.length, clients: new Set(sent.map((k) => k.clientId)).size, rows: rows.length, units: rows.reduce((s, r) => s + r.units, 0), problems: rows.filter((r) => r.problems.length).length },
+    notSent: { open: inMonth.filter((k) => k.status === 'open').length, anonymous: inMonth.filter((k) => k.status === 'closed' && !k.clientId && k.identity !== 'unverified').length, unverified: inMonth.filter((k) => k.identity === 'unverified').length },
+    submission: saved ? { ...saved, byName: staffLabel(db, saved.by), changedSince: changed } : null
+  };
+}
+
+export function submitReport(db, period) {
+  const r = stateReport(db, period);
+  if (!r.rows.length) throw new BadRequest('There’s nothing to send for this month.');
+  if (r.totals.problems) throw new BadRequest('Fix ' + plural(r.totals.problems, 'row', 'rows') + ' with problems before submitting.');
+  const prev = (db.ascReports || {})[period];
+  db.ascReports = { ...(db.ascReports || {}), [period]: { by: db.userId, at: new Date().toISOString(), rows: r.totals.rows, units: r.totals.units, contacts: r.totals.contacts, version: prev ? prev.version + 1 : 1 } };
+  return stateReport(db, period);
 }
