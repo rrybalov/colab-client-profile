@@ -2,6 +2,12 @@
 
 Each version is kept on an `archive/` branch. See "Versions and rolling back" in the README.
 
+## v4.0.2: Automatic contact summary
+
+- **Closing a contact saves a summary as a case note.** It covers who called, the reason, their words, screening, each need and its outcome, each interaction, follow-up dates, on-site steps and the IDs. It goes on the client's record (tagged ASC), or stays on the contact while the person is anonymous and moves to their record when they identify. Urgent transfers get one too. It's a normal note, so it can be edited.
+- Wrap Up's first section is now **Finish documenting today's conversation**.
+- Tests: 607 checks across both data sources.
+
 ## v4.0.1: ASC QA fixes
 
 A full QA pass on v4.0: a walk-through of the live site in Chrome at laptop size, failure and edge cases in the test browser, and a code review. Fixes:

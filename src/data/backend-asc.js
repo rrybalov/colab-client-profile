@@ -1,8 +1,8 @@
 // ASC server logic: contacts (calls and in-person visits), identifying and enrolling the client, the automatic
 // follow-ups, and contact history. Like backend.js, these run in the browser's sample-data source and in
 // tools/mock-api.mjs. docs/API.md describes the endpoints.
-import { NotFound, BadRequest, summary, fullRecord, newId } from './backend.js';
-import { followUpPlan, SCREENING, totals, plural } from './asc.js';
+import { NotFound, BadRequest, summary, fullRecord, newId, createNote } from './backend.js';
+import { followUpPlan, SCREENING, totals, plural, summaryNote, isSummaryNote } from './asc.js';
 import { ASC_ENROLLMENT } from './asc-seed.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -259,7 +259,14 @@ export function closeContact(db, id, body = {}) {
   }
   k.status = 'closed';
   k.endedAt = new Date().toISOString();
-  return full(db, k);
+  // The automatic summary: a case note on the client's record, or on the contact while the person is anonymous.
+  const staff = db.staff.find((s) => s.id === k.staff);
+  const author = staff ? staff.first + ' ' + staff.last : 'ASC';
+  const text = summaryNote(k, author);
+  const notes = [];
+  if (k.clientId) notes.push(createNote(db, k.clientId, { tag: 'ASC', author: k.staff, text }));
+  else k.notes.unshift({ id: newId('kn'), text, restricted: false, date: usOf(new Date(k.endedAt)), author: k.staff, edited: false });
+  return { contact: full(db, k), notes };
 }
 
 // Everything a coordinator needs when a person comes back: what is still open, then each past contact.
@@ -288,7 +295,7 @@ export function contactHistory(db, q = {}) {
     openItems: open,
     contacts: related.map((x) => ({
       ...contactSummary(db, x), staffName: staffName(x.staff), possible: !x.clientId && !!clientId,
-      interactions: x.interactions, notes: x.notes.map((n) => n.text).concat(x.intake.story && !x.notes.length ? [x.intake.story] : []),
+      interactions: x.interactions, notes: ((own) => own.concat(x.intake.story && !own.length ? [x.intake.story] : []))(x.notes.map((n) => n.text).filter((t) => !isSummaryNote(t))),
       screening: SCREENING.filter((s) => x.screening[s.key]).map((s) => s.label + ': ' + x.screening[s.key]),
       minutes: x.endedAt ? Math.round((new Date(x.endedAt) - new Date(x.startedAt)) / 60000) : 0,
       totalsText: plural(x.interactions.length, 'interaction', 'interactions')

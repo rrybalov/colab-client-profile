@@ -157,3 +157,39 @@ export function screeningLine(screening) {
   const concerns = SCREENING.filter((q) => isConcern(q, screening[q.key])).map((q) => q.short);
   return (concerns.length ? 'Concerns: ' + concerns.join(', ') : 'No concerns') + ' · ' + asked.length + ' of ' + SCREENING.length + ' asked';
 }
+
+// ------------------------------------------------------------------ automatic case note
+// Written when a contact closes and saved as a case note: on the client's record, or on the contact itself while the
+// person is anonymous (it moves to their record if they identify later). Plain lines, no judgment: what was asked,
+// what was done, what happens next. The first line is what shows in a collapsed note.
+const plain = (s) => String(s || '').replace(/\s*\[[^\]]*\]/g, '').replace(/\s*·\s*T1016\w+/, '').trim();
+const lower = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+export const isSummaryNote = (text) => /^ASC (phone call|in person) summary, /.test(String(text || ''));
+export function summaryNote(k, staffName) {
+  const end = k.endedAt || new Date().toISOString();
+  const lines = [];
+  lines.push('ASC ' + lower(CHANNELS[k.channel] || CHANNELS.phone) + ' summary, ' + usDate(k.startedAt) + ', ' + clockTime(k.startedAt) + '–' + clockTime(end) + ' (' + minutesBetween(k.startedAt, end) + ' min), ' + staffName + '.');
+  const caller = k.intake.caller === 'Other' ? k.intake.callerOther || 'Other' : k.intake.caller;
+  if (caller) lines.push('Caller: ' + lower(caller) + (k.intake.callerName ? ' (' + k.intake.callerName + ')' : '') + '.');
+  const reason = k.intake.reason === 'Something else' ? k.intake.reasonText || 'something else' : k.intake.reason;
+  if (reason) lines.push('Reason: ' + lower(reason) + '.');
+  if (k.intake.story) lines.push('In their words: ' + k.intake.story.trim());
+  if (k.urgent) lines.push('Urgent: ' + lower(k.urgent.how.split(':')[0]) + ' to ' + plain(k.urgent.dest) + (k.urgent.need ? ' for ' + lower(k.urgent.need) : '') + '.' + (k.urgent.note ? ' ' + k.urgent.note.trim() : ''));
+  const asked = SCREENING.filter((q) => k.screening[q.key]);
+  const concerns = SCREENING.filter((q) => isConcern(q, k.screening[q.key])).map((q) => lower(q.short));
+  lines.push('Screening: ' + (!asked.length ? 'not asked.' : (concerns.length ? 'concerns with ' + concerns.join(', ') : 'no concerns') + ' (' + asked.length + ' of ' + SCREENING.length + ' asked).'));
+  k.needs.forEach((n) => lines.push('Need: ' + n.name + ' (' + lower(n.urg || 'Routine') + '). Outcome: ' + lower(n.outcome || 'none chosen') + '.'));
+  k.interactions.filter((x) => x.what).forEach((x) => lines.push('Interaction: ' + x.what + '. ' + [plain(x.type), lower(x.how), x.min ? x.min + ' min' : ''].filter(Boolean).join(', ') + '.' + (x.notes ? ' ' + x.notes.trim() : '')));
+  if (k.clientId) {
+    if (k.followUp.ok === 'Yes') { const p = followUpPlan(k, ''); lines.push('Follow-up: OK by ' + lower(k.followUp.how) + '. 7-day on ' + usDate(p[0].due) + ', 90-day on ' + usDate(p[1].due) + '.'); }
+    else lines.push(k.followUp.ok === 'No' ? 'Follow-up: declined.' : 'Follow-up: not asked.');
+  }
+  if (k.channel === 'person') {
+    const o = k.onsite;
+    const bits = [o.idCheck && o.idCheck !== 'None shown' ? 'ID checked (' + lower(o.idCheck) + ')' : 'no ID shown', o.consentSigned ? 'consent signed' : '', o.docs.length ? plural(o.docs.length, 'document', 'documents') + ' scanned' : ''].filter(Boolean);
+    lines.push('In person at ' + (k.site || 'the site') + ': ' + bits.join(', ') + '.');
+  }
+  if (!k.clientId) lines.push(k.identity === 'unverified' ? 'Not verified in MCI yet.' : 'Anonymous. Reference number ' + k.ref + '.');
+  lines.push('Event ID ' + k.ref + (k.logId ? ' · ' + (k.channel === 'person' ? 'Visit ID ' : 'Call Log ID ') + k.logId : '') + '.');
+  return lines.join('\n');
+}

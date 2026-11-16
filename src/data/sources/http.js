@@ -57,7 +57,7 @@ export function createHttpSource({ baseUrl, headers = {}, credentials = 'same-or
     createContact: (body) => request('POST', '/asc/contacts', body).then(normalizeContact),
     updateContact: (id, patch) => request('PATCH', '/asc/contacts/' + enc(id), patch).then(contactChange),
     linkContact: (id, body) => request('POST', '/asc/contacts/' + enc(id) + '/link', body).then(contactChange),
-    closeContact: (id, body) => request('POST', '/asc/contacts/' + enc(id) + '/close', body).then(normalizeContact),
+    closeContact: (id, body) => request('POST', '/asc/contacts/' + enc(id) + '/close', body).then(contactChange),
     lookupContact: (ref) => request('GET', '/asc/contacts/lookup?ref=' + enc(ref)).then(normalizeContactSummary),
     getContactHistory: (q) => request('GET', '/asc/history?' + query(q)).then(normalizeHistory)
   };

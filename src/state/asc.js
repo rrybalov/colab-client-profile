@@ -72,7 +72,8 @@ export function useAscMutations() {
     });
   }, [source, dispatch, apply, fail]);
   const linkContact = useCallback((k, body) => source.linkContact(k.id, body).then(apply, fail), [source, apply, fail]);
-  const closeContact = useCallback((k, body) => source.closeContact(k.id, body).then((c) => { dispatch({ type: 'records', records: { contacts: [c] } }); refreshLists(); return c; }, fail), [source, dispatch, refreshLists, fail]);
+  // Closing also saves the automatic summary as a case note, which comes back with the closed contact.
+  const closeContact = useCallback((k, body) => source.closeContact(k.id, body).then((r) => apply(r).contact, fail), [source, apply, fail]);
   const lookupContact = useCallback((ref) => source.lookupContact(ref), [source]);
   return { createContact, updateContact, linkContact, closeContact, lookupContact };
 }

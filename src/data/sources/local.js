@@ -84,7 +84,7 @@ export function createLocalSource() {
     createContact: (body) => run((d) => api.createContact(d, body), true).then(normalizeContact),
     updateContact: (id, patch) => run((d) => api.updateContact(d, id, patch), true).then(contactChange),
     linkContact: (id, body) => run((d) => api.linkContact(d, id, body), true).then(contactChange),
-    closeContact: (id, body) => run((d) => api.closeContact(d, id, body), true).then(normalizeContact),
+    closeContact: (id, body) => run((d) => api.closeContact(d, id, body), true).then(contactChange),
     lookupContact: (ref) => run((d) => api.lookupContact(d, ref)).then(normalizeContactSummary),
     getContactHistory: (q) => run((d) => api.contactHistory(d, q)).then(normalizeHistory)
   };

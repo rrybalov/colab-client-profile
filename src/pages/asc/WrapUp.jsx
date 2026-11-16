@@ -1,4 +1,5 @@
-// Step 4, Wrap Up: every need ends somewhere, the reporting check, then close the contact.
+// Step 4, Wrap Up: an outcome for each need, the reporting check, then close the contact. Closing saves an
+// automatic summary as a case note.
 import React, { useState } from 'react';
 import { Icon } from '../../ui/icons.jsx';
 import { Table } from '../../ui/controls.jsx';
@@ -33,6 +34,7 @@ function Closed({ k }) {
   if (k.clientId) lines.push(k.followUp.ok === 'Yes' ? 'Follow-ups scheduled: 7-day and 90-day' : k.followUp.ok === 'No' ? 'They declined follow-up' : 'Follow-up permission not asked');
   if (k.channel === 'person') lines.push('In person at ' + k.site + (k.onsite.idCheck && k.onsite.idCheck !== 'None shown' ? ', ID checked' : '') + (k.onsite.consentSigned ? ', consent signed' : '') + (k.onsite.docs.length ? ', ' + plural(k.onsite.docs.length, 'document', 'documents') + ' scanned' : ''));
   const issues = k.clientId ? reportingIssues(k) : [];
+  lines.push('Summary saved as a case note');
   lines.push(k.clientId ? (issues.length ? 'Not ready for state reporting: ' + issues.map((i) => i.title.replace(/\.$/, '').toLowerCase()).join(', ') : 'Ready for state reporting') : 'Counted in ASC reports by caller, reason and outcome');
   return (
     <div className="view asc-view">
@@ -71,7 +73,7 @@ export function WrapUpStep({ k, edit, flush }) {
     <div className="view asc-view">
       <div className="view-head"><h2 className="title"><Icon name="check" size={24} />Wrap Up</h2></div>
 
-      <Section id="h-wneeds" title="Every need ends somewhere" icon="layers" hint="Choose what happens to each need. Open needs stay on the record for the next contact.">
+      <Section id="h-wneeds" title="Finish documenting today's conversation" icon="layers" hint="Choose what happens to each need. Open needs stay on the record for the next contact.">
         {k.needs.length ? (
           <ul className="asc-outcomes">
             {k.needs.map((n) => {

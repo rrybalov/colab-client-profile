@@ -947,6 +947,7 @@ async function run(mode) {
   await part('ASC: wrap up and close', async () => {
     await pg.getByRole('button', { name: 'Next: Wrap Up' }).click();
     await pg.waitForSelector('#h-wneeds');
+    check('Wrap Up: finish documenting today’s conversation', (await text('#h-wneeds')).includes('Finish documenting today'));
     check('the state table has a row per interaction', (await count('.table[aria-label="What goes to the state"] .tr.is-row')) === 2);
     await btn('Close Contact', true).click();
     check('closing needs an outcome for each need', (await text('.asc-foot')).includes('Choose an outcome') && (await pg.evaluate(() => document.activeElement.tagName)) === 'SELECT');
@@ -957,6 +958,9 @@ async function run(mode) {
     const k = await contactOf(kid);
     check('the contact is closed', k.status === 'closed' && k.closedKind === 'client' && !!k.endedAt);
     check('the summary says it is ready to report', (await text('.asc-summary')).includes('Ready for state reporting'));
+    const auto = (await source()).notes.find((n) => n.clientId === 'c65' && n.tag === 'ASC' && n.text.includes(k.ref));
+    check('closing saves an automatic summary on the client’s record', !!auto && /^ASC phone call summary, /.test(auto.text) && auto.text.includes('Outcome: keep open with a follow-up') && auto.text.includes('Follow-up:'));
+    check('the panel shows it straight away', (await text('aside.panel')).includes('ASC phone call summary') && (await text('.asc-summary')).includes('Summary saved as a case note'));
     await go('#client/c65/asc');
     await pg.waitForSelector('.asc-history');
     check('Jayden’s ASC tab shows his contacts', (await count('.asc-event')) === 3 && (await text('.info-card')).includes('Active'));
@@ -995,7 +999,9 @@ async function run(mode) {
     await pg.locator('.asc-outcomes select').first().selectOption('Information given');
     await btn('Close Contact', true).click();
     await pg.waitForSelector('.asc-closed');
-    check('closes as anonymous', (await contactOf(id)).closedKind === 'anon' && (await text('.asc-summary')).includes('Anonymous'));
+    const closed = await contactOf(id);
+    check('closes as anonymous', closed.closedKind === 'anon' && (await text('.asc-summary')).includes('Anonymous'));
+    check('the automatic summary stays on the anonymous contact', closed.notes.length === 2 && /^ASC in person summary, /.test(closed.notes[0].text) && closed.notes[0].text.includes('ID checked') && closed.notes[0].text.includes('Reference number'));
   });
 
   await part('ASC: urgent routing', async () => {
