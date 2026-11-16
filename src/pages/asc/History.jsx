@@ -3,17 +3,22 @@
 import React, { useState } from 'react';
 import { Icon } from '../../ui/icons.jsx';
 import { Modal, Loaded, Table, Field } from '../../ui/controls.jsx';
-import { usePref } from '../../state/store.jsx';
+import { usePref, useData } from '../../state/store.jsx';
+import { useMutations } from '../../state/data.js';
+import { useModalControls } from '../../state/modal.js';
 import { useContactHistory, useContact, useAscMutations } from '../../state/asc.js';
 import { navigate } from '../../router.jsx';
+import { newNeed } from './Intake.jsx';
 import { URGENT_DESTINATIONS, URGENT_HOWS, CRISIS, OPEN, usDate, clockTime, shown } from '../../data/asc.js';
 import { channelIcon, channelLabel, Badge } from './parts.jsx';
+import { ContactRecord } from './Record.jsx';
 
 const IX_SPEC = { grid: 'minmax(160px,2fr) minmax(120px,1.4fr) minmax(110px,1fr) 64px minmax(90px,1fr)', min: 620 };
 const KIND = { 'Open need': 'is-need', 'Action item': 'is-action' };
 
 function ContactEvent({ c, defaultOpen }) {
   const [open, setOpen] = useState(!!defaultOpen);
+  const [full, setFull] = useState(false);
   const panel = 'hist-' + c.id;
   return (
     <li className="event asc-event">
@@ -45,8 +50,15 @@ function ContactEvent({ c, defaultOpen }) {
                 ))}
               </Table>
             </div>
-            {c.screening.length > 0 && <div className="asc-span"><h4 className="field-label">Screening</h4><p>{c.screening.join(' · ')}</p></div>}
             {c.notes.length > 0 && <div className="asc-span"><h4 className="field-label">Case note · {c.staffName}</h4>{c.notes.map((n) => <p key={n}>{n}</p>)}</div>}
+            {c.record && (
+              <div className="asc-span">
+                <button type="button" className="btn-text is-icon asc-record-toggle" aria-expanded={full} aria-controls={full ? 'rec-' + c.id : undefined} onClick={() => setFull(!full)}>
+                  <Icon name="chevronDown" size={16} className={'chev' + (full ? ' is-open' : '')} />{full ? 'Hide Full Record' : 'Show Full Record'}
+                </button>
+                {full && <div id={'rec-' + c.id}><ContactRecord r={c.record} /></div>}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -54,7 +66,42 @@ function ContactEvent({ c, defaultOpen }) {
   );
 }
 
-export function HistoryList({ q, empty }) {
+// One open item, with what can be done about it right here.
+function OpenItem({ o, current, onAddNeed }) {
+  const { actions } = useData();
+  const { toggleAction } = useMutations();
+  const { closeModal } = useModalControls();
+  const [done, setDone] = useState(false);
+  const go = (to) => { closeModal(); navigate(to); };
+  const fromContact = o.contactId && current && o.contactId === current.id;
+  let act = null;
+  if (o.kind === 'Open need') {
+    const here = current && current.needs.some((n) => n.name === o.need);
+    act = current && current.status === 'open'
+      ? (here ? <span className="asc-open-done"><Icon name="checkSmall" size={14} />On this contact</span>
+        : <button type="button" className="btn-outline is-small" onClick={() => onAddNeed(o)}><Icon name="plus" size={14} />Add to This Contact</button>)
+      : <button type="button" className="btn-text is-small" onClick={() => go({ page: 'contact', id: o.contactId, step: 'wrap-up' })}>View {o.ref}</button>;
+  } else if (o.clientId) {
+    const a = actions[o.actionId];
+    act = (
+      <span className="asc-open-acts">
+        {a && <button type="button" className="btn-outline is-small" disabled={done || a.done} onClick={() => toggleAction({ ...a, done: false }).then(() => setDone(true), () => {})}><Icon name="checkSmall" size={14} />{done || a.done ? 'Done' : 'Mark Done'}</button>}
+        <button type="button" className="btn-text is-small" onClick={() => go({ page: 'client', id: o.clientId, sub: 'actions' })}>View All</button>
+      </span>
+    );
+  } else if (o.contactId && !fromContact) {
+    act = <button type="button" className="btn-text is-small" onClick={() => go({ page: 'contact', id: o.contactId, step: 'wrap-up' })}>View {o.ref}</button>;
+  }
+  return (
+    <li className={done ? 'is-done' : ''}>
+      <span className={'asc-kind ' + (KIND[o.kind] || '')}>{o.kind}</span>
+      <div><strong>{o.text}</strong><span>{o.meta}</span></div>
+      {act && <div className="asc-open-act">{act}</div>}
+    </li>
+  );
+}
+
+export function HistoryList({ q, empty, current, onAddNeed }) {
   const { query, history } = useContactHistory(q);
   return (
     <Loaded query={query} what="previous interactions">{() => (
@@ -62,7 +109,7 @@ export function HistoryList({ q, empty }) {
         <section className="asc-open" aria-labelledby="h-still-open">
           <h3 className="section-label" id="h-still-open"><Icon name="alert" size={18} />Still open from earlier contacts</h3>
           {history.openItems.length ? (
-            <ul>{history.openItems.map((o, i) => <li key={i}><span className={'asc-kind ' + (KIND[o.kind] || '')}>{o.kind}</span><div><strong>{o.text}</strong><span>{o.meta}</span></div></li>)}</ul>
+            <ul>{history.openItems.map((o, i) => <OpenItem key={(o.actionId || o.need) + i} o={o} current={current} onAddNeed={onAddNeed} />)}</ul>
           ) : <p className="asc-hint">Nothing open.</p>}
         </section>
         <section aria-labelledby="h-past">
@@ -78,10 +125,13 @@ export function HistoryList({ q, empty }) {
 
 export function HistoryModal({ contactId, clientId, onClose }) {
   const { contact: k } = useContact(contactId || null);
+  const { updateContact } = useAscMutations();
+  // An open need from an earlier contact, carried onto this one.
+  const addNeed = (o) => updateContact(k, { needs: k.needs.concat([newNeed(o.need, o.urg || 'Routine')]) }).catch(() => {});
   const who = k ? (k.client ? k.client.first + ' ' + k.client.last : k.priorRefs.length ? 'Tied by reference number: ' + k.priorRefs.join(', ') : 'Anonymous') : '';
   return (
     <Modal id="asc-history" title="History" icon="history" intro={who} onClose={onClose}>
-      <HistoryList q={contactId ? { contactId } : { clientId }} empty={k && !k.clientId && !k.priorRefs.length ? 'No earlier contacts tied to this one yet.' : undefined} />
+      <HistoryList q={contactId ? { contactId } : { clientId }} current={k} onAddNeed={addNeed} empty={k && !k.clientId && !k.priorRefs.length ? 'No earlier contacts tied to this one yet.' : undefined} />
       <div className="modal-foot is-end"><button type="button" className="btn-primary" onClick={onClose}>Done</button></div>
     </Modal>
   );

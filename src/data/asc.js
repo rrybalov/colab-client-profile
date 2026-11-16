@@ -179,6 +179,29 @@ export function screeningLine(screening) {
   return (concerns.length ? 'Concerns: ' + concerns.join(', ') : 'No concerns') + ' · ' + asked.length + ' of ' + SCREENING.length + ' asked';
 }
 
+// ------------------------------------------------------------------ client flags
+// What a person has said about themselves across their ASC contacts. Each screening area uses their most recent
+// answer: a concern there is a current flag; a concern only in earlier answers shows as earlier. Skip doesn't count.
+const FLAG_LABELS = { mh: 'Mental health', ph: 'Physical health', house: 'Housing insecurity', food: 'Food access', su: 'Substance use' };
+export function clientFlags(records) {
+  const list = records.slice().sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+  const current = [], earlier = [];
+  SCREENING.forEach((q) => {
+    const answered = list.filter((r) => r.screening[q.key] && r.screening[q.key] !== SKIP);
+    if (!answered.length) return;
+    const latest = answered[0];
+    const flag = { key: q.key, label: FLAG_LABELS[q.key], answer: latest.screening[q.key], date: latest.startedAt, ref: latest.ref };
+    if (isConcern(q, latest.screening[q.key])) current.push(flag);
+    else {
+      const past = answered.find((r) => isConcern(q, r.screening[q.key]));
+      if (past) earlier.push({ ...flag, answer: past.screening[q.key], date: past.startedAt, ref: past.ref });
+    }
+  });
+  const crisis = list.find((r) => r.intake.safety === 'Yes' || r.closedKind === 'urgent');
+  if (crisis) current.unshift({ key: 'safety', label: 'Safety', answer: 'Routed to crisis', date: crisis.startedAt, ref: crisis.ref });
+  return { current, earlier };
+}
+
 // ------------------------------------------------------------------ automatic case note
 // Written when a contact closes and saved as a case note: on the client's record, or on the contact itself while the
 // person is anonymous (it moves to their record if they identify later). Plain lines, no judgment: what was asked,

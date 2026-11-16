@@ -2,6 +2,40 @@
 
 Each version is kept on an `archive/` branch. See "Versions and rolling back" in the README.
 
+## v4.2: CoLab navigation, contact records, flags and follow-through
+
+**Navigation.** The CoLab menu in the sidebar now takes you to that CoLab's home page instead of filtering every page:
+- ASC opens ASC Contacts.
+- The other CoLabs open their own home: starred clients, action items and case notes for that CoLab only.
+- All CoLabs opens CoLab Home.
+
+The "Showing … only" banner and the separate ASC Contacts link are gone. Action Items and Case Notes (no longer "My …") filter by CoLab on the page, like Starred Clients.
+
+**ASC Contacts:**
+- Contact type and coordinator are their own columns, and both can be sorted and filtered, alongside a search.
+- New Phone Contact is the top-right button.
+
+**Contact record.** Each contact in History has **Show Full Record**: every answer the coordinator filled in, the screening, needs and outcomes, follow-up, on-site steps, urgent routing, and a step-by-step log of what happened with times.
+- The server writes the log as changes are saved.
+- Typing in one field is one line.
+- Corrections are marked.
+- Older contacts get a log built from their answers.
+
+The screening that sat at the top of the ASC tab now lives here.
+
+**Flags.** A new Flags card sits left of Enrollment on the ASC tab: housing insecurity, food access, substance use, mental and physical health, and safety, from the person's latest self-reported answers. Earlier concerns are listed separately.
+
+**Services tab.** Enrollment in ASC adds Administrative Service Coordination to the client's Services tab, with one instance per contact.
+
+**Follow-through:**
+- A contact that closes with open action items gives the coordinator a reminder, due in 3 business days.
+- "Still open from earlier contacts" can now be acted on:
+  - **Add to This Contact** for an open need, during a contact.
+  - **Mark Done** for an action item.
+  - **View EV-…** to open the contact it came from.
+
+**Tests:** 711 checks across both data sources. The WCAG 2.2 AA audit script finds nothing, now including the new pages and states.
+
 ## v4.1: Simpler ASC, and supervisor corrections
 
 **Simpler.** Every screen lost what it didn't need:

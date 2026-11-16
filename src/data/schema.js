@@ -210,6 +210,8 @@ export function normalizeContact(k) {
     links: arr(k.links).map((l) => ({ actionId: str(l.actionId), ixId: strOrNull(l.ixId), auto: strOrNull(l.auto) })),
     urgent: k.urgent ? { dest: str(k.urgent.dest), how: str(k.urgent.how), need: str(k.urgent.need), note: str(k.urgent.note), at: str(k.urgent.at) } : null,
     summarized: bool(k.summarized),
+    log: arr(k.log).map((l) => ({ at: str(l.at), by: str(l.by), key: str(l.key), text: str(l.text), correction: bool(l.correction) })),
+    reminderId: k.reminderId ? str(k.reminderId) : null,
     correction: k.correction ? { by: str(k.correction.by), at: str(k.correction.at), reason: str(k.correction.reason), changed: arr(k.correction.changed).map(str) } : null,
     corrections: arr(k.corrections).map((c) => ({ by: str(c.by), at: str(c.at), reason: str(c.reason), changed: arr(c.changed).map(str) })),
     client: k.client ? normalizeClientSummary(k.client) : null,
@@ -221,11 +223,12 @@ export function normalizeContact(k) {
 export function normalizeHistory(h) {
   h = obj(h);
   return {
-    openItems: arr(h.openItems).map((o) => ({ kind: str(o.kind), text: str(o.text), meta: str(o.meta) })),
+    openItems: arr(h.openItems).map((o) => ({ kind: str(o.kind), text: str(o.text), meta: str(o.meta), need: str(o.need), urg: str(o.urg), contactId: str(o.contactId), ref: str(o.ref), actionId: str(o.actionId), clientId: str(o.clientId) })),
     contacts: arr(h.contacts).map((x) => ({
       ...normalizeContactSummary(x), staffName: str(x.staffName), possible: bool(x.possible), minutes: num(x.minutes),
       interactions: arr(x.interactions).map((i) => ({ id: str(i.id), what: str(i.what), type: str(i.type), how: str(i.how), min: str(i.min), place: str(i.place) })),
-      notes: arr(x.notes).map(str), screening: arr(x.screening).map(str)
+      notes: arr(x.notes).map(str), screening: arr(x.screening).map(str),
+      record: x.record ? normalizeContact(x.record) : null
     }))
   };
 }

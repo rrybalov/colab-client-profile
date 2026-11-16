@@ -7,7 +7,7 @@ import { StoreProvider, useData } from './state/store.jsx';
 import { useSessionQuery } from './state/data.js';
 import { useRoute, HUB_PAGES, CLIENT_TABS } from './router.jsx';
 import { HubShell } from './pages/hub/HubShell.jsx';
-import { Home } from './pages/hub/Home.jsx';
+import { Home, ColabHome } from './pages/hub/Home.jsx';
 import { MyActions, MyNotes } from './pages/hub/MyWork.jsx';
 import { Starred } from './pages/hub/Starred.jsx';
 import { ClientPage } from './pages/client/ClientPage.jsx';
@@ -22,8 +22,10 @@ const STEP_TITLES = { intake: 'Intake', identify: 'Identify', interactions: 'Int
 const SUBPAGES = { notes: 'All Case Notes', actions: 'All Action Items', addresses: 'Address History', service: 'Service Details', provider: 'Provider Details' };
 
 function useTitle(route) {
-  const { clients, contacts } = useData();
-  let title = HUB_PAGES[route.page] || 'CoLab';
+  const { clients, contacts, queries } = useData();
+  const session = queries.session && queries.session.data;
+  const colab = route.page === 'colab' && session ? session.colabs.find((x) => x.id === route.id) : null;
+  let title = route.page === 'colab' ? (colab ? colab.name : 'CoLab') : HUB_PAGES[route.page] || 'CoLab';
   if (route.page === 'client') {
     const c = clients[route.id];
     const part = SUBPAGES[route.sub] || (CLIENT_TABS.find((t) => t[0] === route.tab) || [0, 'Client'])[1];
@@ -47,6 +49,7 @@ function App() {
   let page;
   if (route.page === 'client') page = <ClientPage route={route} />;
   else if (route.page === 'contact') page = <ContactPage route={route} />;
+  else if (route.page === 'colab') page = <HubShell page="colab" colab={route.id}><ColabHome id={route.id} /></HubShell>;
   else { const P = HUB[route.page] || Home; page = <HubShell page={route.page}><P /></HubShell>; }
   return <><a className="skip-link" href="#main" onClick={skip}>Skip to main content</a>{page}<Modals /><Toast /></>;
 }

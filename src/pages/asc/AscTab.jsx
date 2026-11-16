@@ -1,14 +1,13 @@
-// The ASC tab on a client's profile: enrollment, the latest screening and follow-up answers, and every
-// contact. Answers from each contact's intake carry here.
+// The ASC tab on a client's profile: flags from what they've reported, enrollment, and every contact. Each
+// contact's full record (answers, screening and a step-by-step log) opens from its history entry.
 import React from 'react';
 import { Icon } from '../../ui/icons.jsx';
 import { useSession } from '../../state/data.js';
-import { useContacts, useContact, useAscMutations } from '../../state/asc.js';
+import { useContacts, useContactHistory, useAscMutations } from '../../state/asc.js';
 import { navigate } from '../../router.jsx';
 import { Loaded } from '../../ui/controls.jsx';
 import { ASC_ENROLLMENT } from '../../data/asc-seed.js';
-import { usDate } from '../../data/asc.js';
-import { ScreeningSummary } from './parts.jsx';
+import { usDate, clientFlags } from '../../data/asc.js';
 import { HistoryList } from './History.jsx';
 
 export function AscTab({ client: c }) {
@@ -31,15 +30,16 @@ export function AscTab({ client: c }) {
       <div className="view-head">
         <h2 className="title"><Icon name="headset" size={24} />Administrative Service Coordination</h2>
         <div className="asc-start">
-          <button type="button" className="btn-primary is-icon" onClick={() => start('phone')}><Icon name="phone" />New Phone Contact</button>
           <button type="button" className="btn-outline" onClick={() => start('person')}><Icon name="door" />New In-Person Contact</button>
+          <button type="button" className="btn-primary is-icon" onClick={() => start('phone')}><Icon name="phone" />New Phone Contact</button>
         </div>
       </div>
       <Loaded query={query} what="ASC contacts">{() => {
         const latest = contacts[0];
         return (
           <>
-            <div className="card-grid is-one">
+            <div className="card-grid asc-tab-cards">
+              <Flags client={c} />
               <div className="info-card">
                 <h3 className="asc-card-title"><Icon name="check" size={18} />Enrollment</h3>
                 <dl className="pairs is-small">
@@ -50,7 +50,6 @@ export function AscTab({ client: c }) {
                 </dl>
               </div>
             </div>
-            {latest && <LatestScreening contactId={latest.id} />}
           </>
         );
       }}</Loaded>
@@ -62,13 +61,26 @@ export function AscTab({ client: c }) {
   );
 }
 
-function LatestScreening({ contactId }) {
-  const { contact: k } = useContact(contactId);
-  if (!k) return null;
+// Flags from what the person has reported in their ASC contacts: their latest answer in each screening area.
+function Flags({ client: c }) {
+  const { history } = useContactHistory({ clientId: c.id });
+  const records = history.contacts.filter((x) => x.record && x.record.clientId === c.id).map((x) => x.record);
+  const { current, earlier } = clientFlags(records);
   return (
-    <section className="asc-section" aria-labelledby="h-asc-scr">
-      <div className="asc-section-head"><div><h3 className="section-label" id="h-asc-scr"><Icon name="check" size={18} />Screening, latest contact</h3><p className="asc-hint">{k.ref} · {usDate(k.startedAt)}. Follow-up: {k.followUp.ok === 'Yes' ? 'OK by ' + k.followUp.how.toLowerCase() + (k.followUp.time ? ', ' + k.followUp.time : '') : k.followUp.ok === 'No' ? 'declined' : 'not asked'}.</p></div></div>
-      <ScreeningSummary screening={k.screening} />
-    </section>
+    <div className="info-card asc-flags" aria-labelledby="h-flags">
+      <h3 className="asc-card-title" id="h-flags"><Icon name="flag" size={18} />Flags</h3>
+      {current.length ? (
+        <ul className="asc-flag-list">
+          {current.map((f) => <li key={f.key} className="is-on"><Icon name="alert" size={14} /><strong>{f.label}</strong><span>{f.answer} · {usDate(f.date)}</span></li>)}
+        </ul>
+      ) : <p className="asc-hint">Nothing flagged from what {c.first} has told us.</p>}
+      {earlier.length > 0 && (
+        <>
+          <p className="field-label">Earlier, not in their latest answer</p>
+          <ul className="asc-flag-list">{earlier.map((f) => <li key={f.key}><strong>{f.label}</strong><span>{f.answer} · {usDate(f.date)}</span></li>)}</ul>
+        </>
+      )}
+      <p className="asc-hint">Self-reported during ASC contacts.</p>
+    </div>
   );
 }

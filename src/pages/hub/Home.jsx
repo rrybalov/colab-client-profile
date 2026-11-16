@@ -6,13 +6,11 @@ import { Link } from '../../router.jsx';
 import { Segmented, Loaded } from '../../ui/controls.jsx';
 import { ActionRow, NoteRow, StarButton, CopyButton, clientRoute } from '../../ui/records.jsx';
 import { byDueAsc, displayName, fullName, isOverdue, sortKey } from '../../lib.js';
-import { ColabNotice, SearchLaunch, useColabScope } from './HubShell.jsx';
-import { AscLaunch } from '../asc/AscHome.jsx';
+import { SearchLaunch, ALL, colabScope } from './HubShell.jsx';
 
 const PER_PAGE = 8;
 
-function StarredCarousel() {
-  const scope = useColabScope();
+function StarredCarousel({ scope }) {
   const { query, clients } = useStarred();
   const [pageRaw, setPage] = usePref('home.starPage', 0);
   const starred = clients.filter(scope.client).sort((a, b) => (sortKey(b.favorited, 'date') > sortKey(a.favorited, 'date') ? 1 : -1));
@@ -49,8 +47,7 @@ function StarredCarousel() {
   );
 }
 
-function RecentActions() {
-  const scope = useColabScope();
+function RecentActions({ scope }) {
   const lookup = useClientsById();
   const { query, actions } = useMyActions();
   const [tab, setTab] = usePref('home.actionTab', 'open');
@@ -76,8 +73,7 @@ function RecentActions() {
   );
 }
 
-function RecentNotes() {
-  const scope = useColabScope();
+function RecentNotes({ scope }) {
   const lookup = useClientsById();
   const { query, notes } = useMyNotes();
   const mine = notes.filter(scope.item);
@@ -102,16 +98,31 @@ function RecentNotes() {
 
 export function Home() {
   const { user } = useSession();
-  const { colab } = useColabScope();
   return (
     <>
       <div className="page-head"><h1 className="page-title is-welcome">Welcome, {user.first} <span aria-hidden="true">👋</span></h1><SearchLaunch /></div>
-      <ColabNotice />
-      {colab === 'ASC' && <AscLaunch />}
-      <StarredCarousel />
+      <StarredCarousel scope={ALL} />
       <div className="home-grid">
-        <RecentActions />
-        <RecentNotes />
+        <RecentActions scope={ALL} />
+        <RecentNotes scope={ALL} />
+      </div>
+    </>
+  );
+}
+
+// A CoLab's own home, for CoLabs without a dedicated one: the same cards, narrowed to that CoLab.
+export function ColabHome({ id }) {
+  const { colabs } = useSession();
+  const c = colabs.find((x) => x.id === id);
+  if (!c) return <div className="empty-box" style={{ marginTop: 24 }}><h1 className="title" style={{ fontSize: 18 }}>CoLab not found</h1><p>There's no CoLab called “{id}”.</p><Link className="btn-outline" to="#home"><Icon name="home" />CoLab Home</Link></div>;
+  const scope = colabScope(c.id, c.tag);
+  return (
+    <>
+      <div className="page-head"><h1 className="page-title"><Icon name="layers" size={26} />{c.name}</h1><SearchLaunch /></div>
+      <StarredCarousel scope={scope} />
+      <div className="home-grid">
+        <RecentActions scope={scope} />
+        <RecentNotes scope={scope} />
       </div>
     </>
   );

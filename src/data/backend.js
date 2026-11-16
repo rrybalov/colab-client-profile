@@ -109,7 +109,7 @@ export function createAction(db, clientId, body) {
   client(db, clientId);
   const a = {
     id: body.id || newId('a'), clientId, tag: body.tag || 'PERSONAL', text: text(body.text),
-    assignee: body.assignee || db.userId, due: body.due || '', done: !!body.done, edited: !!body.edited
+    assignee: body.assignee || db.userId, due: body.due || '', done: !!body.done, edited: !!body.edited, createdAt: new Date().toISOString()
   };
   db.actions.unshift(a);
   return a;

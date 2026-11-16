@@ -3,13 +3,16 @@ import React, { useEffect, useState } from 'react';
 
 // The ASC tab only shows for clients enrolled in ASC (see ClientPage).
 export const CLIENT_TABS = [['overview', 'Client Overview'], ['services', 'Services'], ['program-info', 'Program Info'], ['providers', 'Providers'], ['benefits', 'Benefits'], ['asc', 'ASC']];
-export const HUB_PAGES = { home: 'CoLab Home', 'my-action-items': 'My Action Items', 'my-case-notes': 'My Case Notes', 'starred-clients': 'Starred Clients', asc: 'ASC Contacts' };
+export const HUB_PAGES = { home: 'CoLab Home', 'my-action-items': 'Action Items', 'my-case-notes': 'Case Notes', 'starred-clients': 'Starred Clients', asc: 'ASC Contacts' };
+// Each CoLab's own home. ASC has a dedicated one (#asc); the others share a generic one (#colab/<id>).
+export const colabHome = (id) => (!id ? '#home' : id === 'ASC' ? '#asc' : '#colab/' + encodeURIComponent(id));
 export const CONTACT_STEPS = ['intake', 'identify', 'interactions', 'wrap-up'];
 
 export function parse(hash) {
   const parts = decodeURIComponent((hash || '').replace(/^#\/?/, '')).split('/').filter(Boolean);
   if (!parts.length || parts[0] === 'home') return { page: 'home' };
   if (parts[0] === 'asc' && parts[1] === 'contact' && parts[2]) return { page: 'contact', id: parts[2], step: CONTACT_STEPS.includes(parts[3]) ? parts[3] : 'intake' };
+  if (parts[0] === 'colab' && parts[1]) return { page: 'colab', id: parts[1] };
   if (HUB_PAGES[parts[0]]) return { page: parts[0] };
   if (CLIENT_TABS.some((t) => t[0] === parts[0])) return { page: 'client', id: 'c1', sub: 'tab', tab: parts[0] };
   if (parts[0] === 'client') {
@@ -27,6 +30,7 @@ export function parse(hash) {
 
 export function href(r) {
   if (r.page === 'contact') return '#asc/contact/' + r.id + '/' + (r.step || 'intake');
+  if (r.page === 'colab') return colabHome(r.id);
   if (r.page !== 'client') return '#' + r.page;
   const base = '#client/' + r.id + '/';
   if (r.sub === 'notes') return base + 'case-notes';

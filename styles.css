@@ -970,7 +970,6 @@ span.src-tag { cursor: default; }
 .asc-urgent-record { padding: 14px 16px; border-radius: var(--radius); background: var(--smoke); }
 
 /* ASC Contacts page and the Home card */
-.side-asc { margin-top: 4px; }
 .page-title .icon { color: var(--light-blue); }
 .asc-launch .card-head { align-items: flex-start; }
 .asc-launch-body { display: flex; flex-direction: column; gap: 14px; }
@@ -1057,3 +1056,44 @@ span.src-tag { cursor: default; }
 .asc-match.is-line .asc-avatar { width: 36px; height: 36px; font-size: 14px; }
 /* The step tabs already draw a line, so the first section after them doesn't draw another. */
 .asc-view > :is(h2.sr-only, .asc-step-actions) + .asc-section { border-top: 0; padding-top: 4px; }
+
+/* ---------- v4.2 ---------- */
+/* ASC tab: flags beside enrollment */
+.asc-tab-cards { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.asc-flags { display: flex; flex-direction: column; gap: 10px; }
+.asc-flag-list { display: flex; flex-direction: column; gap: 6px; }
+.asc-flag-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 7px 10px; border-radius: var(--radius); background: var(--smoke); font-size: 13px; }
+.asc-flag-list li strong { color: var(--black); font-weight: 600; }
+.asc-flag-list li span { color: var(--slate); }
+.asc-flag-list li.is-on { background: #FDF0EE; }
+.asc-flag-list li.is-on .icon { color: var(--red-text); }
+/* Open items you can act on */
+.asc-open li { grid-template-columns: 130px minmax(0, 1fr) auto; align-items: center; }
+.asc-open li.is-done strong { text-decoration: line-through; color: var(--stone); }
+.asc-open-act { display: flex; justify-content: flex-end; }
+.asc-open-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.asc-open-done { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--green-text); font-weight: 600; }
+/* Full record of a contact */
+.asc-record-toggle { align-self: flex-start; }
+.asc-record { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 8px; }
+.asc-record-block { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--ash); border-radius: var(--radius); background: var(--white); min-width: 0; }
+.asc-record-block.is-wide { grid-column: 1 / -1; }
+.asc-record-title { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--dark-blue); text-transform: uppercase; letter-spacing: .04em; }
+.asc-record-pairs { display: grid; grid-template-columns: minmax(90px, 36%) minmax(0, 1fr); gap: 4px 12px; font-size: 13px; }
+.asc-record-pairs dt { color: var(--stone); }
+.asc-record-pairs dd { color: var(--black); overflow-wrap: anywhere; }
+.asc-record-quote { margin: 0; padding: 8px 12px; border-radius: var(--radius); background: var(--smoke); font-size: 13px; display: flex; flex-direction: column; gap: 2px; white-space: pre-line; }
+.asc-record-list { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.asc-log { display: flex; flex-direction: column; font-size: 13px; }
+.asc-log li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; padding: 5px 0; border-top: 1px solid var(--hairline); }
+.asc-log li:first-child { border-top: 0; }
+.asc-log time { color: var(--stone); font-variant-numeric: tabular-nums; }
+.asc-log li.is-correction span { color: #7A4A00; }
+.asc-log-tag { margin-left: 8px; padding: 1px 6px; border-radius: 999px; background: #FFF4E0; font-size: 11px; font-weight: 600; }
+@media (max-width: 760px) { .asc-record { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) {
+  .asc-open li { grid-template-columns: minmax(0, 1fr); }
+  .asc-open-act { justify-content: flex-start; }
+  .asc-log li { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+.asc-launch .asc-start { margin-left: auto; }

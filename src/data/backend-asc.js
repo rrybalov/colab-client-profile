@@ -2,7 +2,8 @@
 // follow-ups, and contact history. Like backend.js, these run in the browser's sample-data source and in
 // tools/mock-api.mjs. docs/API.md describes the endpoints.
 import { NotFound, BadRequest, Forbidden, summary, fullRecord, newId, createNote } from './backend.js';
-import { followUpPlan, SCREENING, totals, plural, summaryNote, isSummaryNote, LEGACY, OPEN, CRISIS, SUPERVISOR } from './asc.js';
+import { followUpPlan, SCREENING, totals, plural, summaryNote, isSummaryNote, LEGACY, OPEN, CRISIS, SUPERVISOR, addBusinessDays, dayOf, shown } from './asc.js';
+import { describePatch, appendLog, backfillLog } from './asc-log.js';
 import { ASC_ENROLLMENT } from './asc-seed.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -10,7 +11,7 @@ const usOf = (d) => pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + '/' + d.get
 const findContact = (db, id) => { const k = (db.contacts || []).find((x) => x.id === id); if (!k) throw new NotFound('Contact'); return k; };
 const findClient = (db, id) => { const c = db.clients.find((x) => x.id === id); if (!c) throw new NotFound('Client'); return c; };
 const clone = (v) => JSON.parse(JSON.stringify(v));
-const ensure = (db) => { if (!db.contacts) db.contacts = []; if (!db.contactSeq) db.contactSeq = 184; if (db.ascModel !== 2) migrate(db); };
+const ensure = (db) => { if (!db.contacts) db.contacts = []; if (!db.contactSeq) db.contactSeq = 184; if (db.ascModel !== 3) migrate(db); };
 
 // v4.1 renamed outcomes, merged screening's "Not sure" and "Prefers not to say" into "Skip", shortened the safety
 // answer and added roles. Stored data is upgraded once, in place.
@@ -23,9 +24,11 @@ function migrate(db) {
     Object.keys(k.screening || {}).forEach((q) => { if (LEGACY.screening[k.screening[q]]) k.screening[q] = LEGACY.screening[k.screening[q]]; });
     if (!k.corrections) k.corrections = [];
     if (k.correction === undefined) k.correction = null;
+    backfillLog(k); // v4.2: a step-by-step log, built from the answers for contacts saved before it existed
   });
   (db.staff || []).forEach((s) => { if (!s.role && ROLES[s.id]) s.role = ROLES[s.id]; });
-  db.ascModel = 2;
+  (db.clients || []).forEach((c) => syncAscService(db, c));
+  db.ascModel = 3;
 }
 const me = (db) => (db.staff || []).find((s) => s.id === db.userId) || {};
 const isSupervisor = (db) => me(db).role === SUPERVISOR;
@@ -80,12 +83,14 @@ export function createContact(db, body = {}) {
     intake: { safety: null, caller: null, callerOther: '', callerName: '', age: null, story: '', reason: null, reasonText: '', coverage: null, coverageDetail: '', found: null, foundOther: '', privacy: null, callerConfirmed: null, coverageConfirmed: null },
     screening: { mh: null, ph: null, house: null, food: null, su: null },
     needs: [], interactions: [], followUp: { ok: null, how: 'Phone call', time: '' }, onsite: { idCheck: null, consentSigned: '', docs: [] },
-    notes: [], actions: [], links: [], urgent: null, correction: null, corrections: [], createdAt: new Date().toISOString()
+    notes: [], actions: [], links: [], urgent: null, correction: null, corrections: [], log: [], reminderId: null, createdAt: new Date().toISOString()
   };
+  appendLog(k, [{ key: 'start', text: channel === 'person' ? 'Started an in-person visit at ' + k.site : 'Started a phone call' }], db.userId);
   if (body.clientId) {
     const c = findClient(db, body.clientId);
     if (c.colabs.indexOf('ASC') < 0) throw new BadRequest('This client is not enrolled in ASC.');
     Object.assign(k, { clientId: c.id, identity: 'matched', path: 'client' });
+    appendLog(k, [{ key: 'identity', text: 'Started from ' + c.first + ' ' + c.last + '’s record' }], db.userId);
   }
   db.contacts.unshift(k);
   return full(db, k);
@@ -148,6 +153,7 @@ export function updateContact(db, id, patch = {}) {
     if (blocked.length) throw new BadRequest(k.correction ? 'Who the contact is can’t change in a correction.' : 'This contact is closed. Only case notes and action items can be added.');
     if (k.correction) Object.keys(patch).filter((key) => CORRECTABLE.indexOf(key) >= 0 && k.correction.changed.indexOf(key) < 0).forEach((key) => k.correction.changed.push(key));
   }
+  const lines = describePatch(k, patch);
   SECTIONS.forEach((s) => { if (patch[s] && typeof patch[s] === 'object' && !Array.isArray(patch[s])) k[s] = { ...k[s], ...cleanSection(patch[s]) }; });
   LISTS.forEach((s) => {
     if (!Array.isArray(patch[s])) return;
@@ -161,7 +167,11 @@ export function updateContact(db, id, patch = {}) {
   if ('channel' in patch) k.channel = patch.channel === 'person' ? 'person' : 'phone';
   if ('site' in patch) k.site = String(patch.site || '');
   if ('path' in patch) k.path = patch.path === 'anon' || patch.path === 'client' ? patch.path : null;
-  if ('candidateId' in patch) { if (patch.candidateId) findClient(db, patch.candidateId); k.candidateId = patch.candidateId || null; }
+  if ('candidateId' in patch) {
+    const cand = patch.candidateId ? findClient(db, patch.candidateId) : null;
+    if ((patch.candidateId || null) !== k.candidateId) lines.push({ key: 'candidate', text: cand ? 'Selected ' + cand.first + ' ' + cand.last + ' from MCI' : 'Cleared the MCI match' });
+    k.candidateId = patch.candidateId || null;
+  }
   if ('unverifiedName' in patch) k.unverifiedName = String(patch.unverifiedName || '');
   if ('identity' in patch) {
     if (patch.identity !== 'unverified' && patch.identity !== null) throw new BadRequest('Link a client to set a matched identity.');
@@ -186,6 +196,7 @@ export function updateContact(db, id, patch = {}) {
   // Notes and action items belong to the client record once there is one.
   if (k.clientId && (k.notes.length || k.actions.length)) { const m = moveToClient(db, k); moved.notes.push(...m.notes); moved.actions.push(...m.actions); }
   const sync = syncFollowUps(db, k);
+  appendLog(k, lines, db.userId, { correction: !!k.correction });
   return { contact: full(db, k), notes: moved.notes, actions: moved.actions.concat(sync.changed).map(clone), removeActions: sync.removed };
 }
 
@@ -262,7 +273,26 @@ export function linkContact(db, id, body = {}) {
   if (k.group) k.linkedPrior = 'linked';
   const moved = moveToClient(db, k);
   const sync = syncFollowUps(db, k);
+  syncAscService(db, c);
+  appendLog(k, [{ key: 'identity', text: (identity === 'new' ? 'Registered ' + c.first + ' ' + c.last + ' in MCI' : 'Matched ' + c.first + ' ' + c.last + ' in MCI') + ' and enrolled in ASC' }].concat(earlier.notes.length || earlier.actions.length || k.group ? [{ key: 'linkedPrior', text: 'Earlier contacts moved to their record' }] : []), db.userId);
   return { contact: full(db, k), client: fullRecord(c), notes: moved.notes.concat(earlier.notes), actions: moved.actions.concat(earlier.actions, sync.changed).map(clone), removeActions: sync.removed };
+}
+
+// ASC shows on the client's Services tab: one service row, with one instance per contact (its units and site).
+const ASC_SERVICE = 'Administrative Service Coordination';
+const ASC_PROVIDER = 'DHS ASC';
+export function syncAscService(db, c) {
+  if (!c || c.colabs.indexOf('ASC') < 0) return;
+  const mine = db.contacts.filter((x) => x.clientId === c.id).sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
+  const enroll = (c.enrollments || []).find((e) => e.name === ASC_ENROLLMENT);
+  const first = enroll ? enroll.start : mine.length ? usOf(new Date(mine[0].startedAt)) : usOf(new Date());
+  const last = mine.length ? usOf(new Date(mine[mine.length - 1].startedAt)) : first;
+  c.services = (c.services || []).filter((s) => s.id !== 'asc');
+  c.services.unshift({ id: 'asc', service: ASC_SERVICE, area: 'Service Coordination', program: 'Service Coordination', first, last, added: first, all: [ASC_PROVIDER], grouped: [ASC_PROVIDER] });
+  c.instances = (c.instances || []).filter((i) => i.service !== ASC_SERVICE).concat(mine.map((x) => {
+    const t = totals(x.interactions);
+    return { service: ASC_SERVICE, provider: ASC_PROVIDER, facility: x.channel === 'person' ? x.site || 'ASC site' : 'ASC call center', program: 'Service Coordination', dx: '—', units: String(t.units), rate: 'TBD', rateType: 'Per 15 min', cost: 'TBD', status: x.status === 'open' ? 'Active' : 'Pending', first: usOf(new Date(x.startedAt)), last: usOf(new Date(x.endedAt || x.startedAt)) };
+  }));
 }
 
 export function closeContact(db, id, body = {}) {
@@ -282,10 +312,39 @@ export function closeContact(db, id, body = {}) {
   }
   k.status = 'closed';
   k.endedAt = new Date().toISOString();
+  appendLog(k, [{ key: 'close', text: k.closedKind === 'urgent' ? 'Closed as a transfer to ' + shown(k.urgent.dest) + ' (' + k.urgent.how.split(':')[0].toLowerCase() + ')' : 'Closed the contact' }], db.userId);
   // The automatic summary: a case note on the client's record, or on the contact while the person is anonymous.
   const notes = [addNote(db, k, summaryNote(k, staffLabel(db, k.staff)), k.staff)].filter(Boolean);
   k.summarized = true; // contacts closed before v4.0.2 have no summary note
-  return { contact: full(db, k), notes };
+  const reminder = remindOpenItems(db, k);
+  if (k.clientId) syncAscService(db, findClient(db, k.clientId));
+  return { contact: full(db, k), notes, actions: reminder ? [clone(reminder)] : [] };
+}
+
+// Action items still open from this conversation: ones added during it (or tied to its interactions), not the
+// automatic 7-day and 90-day follow-ups. Anonymous contacts keep theirs on the contact.
+export function openItemsFrom(db, k) {
+  if (!k.clientId) return k.actions.filter((a) => !a.done && a.id !== k.reminderId);
+  const autos = k.links.filter((l) => l.auto).map((l) => l.actionId);
+  const linked = k.links.filter((l) => !l.auto).map((l) => l.actionId);
+  // Reminders from any contact are about other items, never items of their own.
+  const reminders = new Set(db.contacts.map((x) => x.reminderId).filter(Boolean));
+  return db.actions.filter((a) => a.clientId === k.clientId && !a.done && !reminders.has(a.id) && autos.indexOf(a.id) < 0 &&
+    (linked.indexOf(a.id) >= 0 || (a.tag === 'ASC' && a.createdAt && a.createdAt >= k.startedAt)));
+}
+
+// When a conversation ends with open action items, the coordinator gets a reminder to check on them in three
+// business days. One per contact.
+function remindOpenItems(db, k) {
+  if (k.reminderId) return null;
+  const open = openItemsFrom(db, k);
+  if (!open.length) return null;
+  const c = k.clientId ? findClient(db, k.clientId) : null;
+  const a = { id: newId('a'), tag: 'ASC', text: 'Check on ' + plural(open.length, 'open action item', 'open action items') + ' from ' + k.ref + (c ? ' with ' + c.first : ''), assignee: k.staff, due: addBusinessDays(dayOf(k.endedAt), 3), done: false, edited: false, createdAt: new Date().toISOString() };
+  if (c) { a.clientId = c.id; db.actions.unshift(a); } else k.actions.unshift(a);
+  k.reminderId = a.id;
+  appendLog(k, [{ key: 'reminder', text: 'Reminder set for ' + addBusinessDays(dayOf(k.endedAt), 3).replace(/(\d+)-(\d+)-(\d+)/, '$2/$3/$1') + ': ' + a.text }], k.staff);
+  return c ? a : null;
 }
 
 // A case note from the system: on the client's record, or on the contact while the person is anonymous.
@@ -306,6 +365,7 @@ export function startCorrection(db, id, body = {}) {
   const reason = String(body.reason || '').trim().slice(0, 1000);
   if (!reason) throw new BadRequest('Give a reason for the correction.');
   k.correction = { by: db.userId, at: new Date().toISOString(), reason, changed: [] };
+  appendLog(k, [{ key: 'correction.start', text: 'Correction started: “' + reason + '”' }], db.userId, { correction: true });
   return { contact: full(db, k), notes: [] };
 }
 
@@ -323,6 +383,7 @@ export function finishCorrection(db, id) {
   const entry = { by: c.by, at: new Date().toISOString(), reason: c.reason, changed };
   k.corrections.push(entry);
   k.correction = null;
+  appendLog(k, [{ key: 'correction.end', text: 'Correction saved' + (changed.length ? ': ' + changed.join(', ') : '') }], entry.by, { correction: true });
   const text = 'ASC correction to ' + k.ref + ', ' + usOf(new Date(entry.at)) + ', ' + staffLabel(db, entry.by) + '.\nReason: ' + entry.reason + '\nChanged: ' + (changed.length ? changed.join(', ') : 'nothing') + '.\n\n' + summaryNote(k, staffLabel(db, k.staff));
   const notes = [addNote(db, k, text, entry.by)].filter(Boolean);
   return { contact: full(db, k), notes };
@@ -352,13 +413,16 @@ export function contactHistory(db, q = {}) {
   const staffName = (sid) => { const s = db.staff.find((x) => x.id === sid); return s ? s.first + ' ' + s.last : sid; };
   const open = [];
   const seenNeeds = new Set();
+  // Each open item says where it came from, so a screen can act on it: add the need to this contact, mark an
+  // action item done, or open the contact it came from.
+  const due = (a) => (a.due ? a.due.slice(5, 7) + '/' + a.due.slice(8, 10) + '/' + a.due.slice(0, 4) : 'no date');
   related.forEach((x) => x.needs.forEach((n) => {
     if (seenNeeds.has(n.name)) return;
     seenNeeds.add(n.name);
-    if (n.outcome === OPEN) open.push({ kind: 'Open need', text: n.name, meta: n.urg + ' · open since ' + usOf(new Date(x.startedAt)) + ' · ' + staffName(x.staff) });
+    if (n.outcome === OPEN) open.push({ kind: 'Open need', text: n.name, need: n.name, urg: n.urg, contactId: x.id, ref: x.ref, meta: n.urg + ' · open since ' + usOf(new Date(x.startedAt)) + ' · ' + staffName(x.staff) + ' · ' + x.ref });
   }));
-  related.forEach((x) => x.actions.filter((a) => !a.done).forEach((a) => open.push({ kind: 'Action item', text: a.text, meta: staffName(a.assignee) + ' · due ' + (a.due ? a.due.slice(5, 7) + '/' + a.due.slice(8, 10) + '/' + a.due.slice(0, 4) : 'no date') + ' · from ' + x.ref })));
-  if (clientId) db.actions.filter((a) => a.clientId === clientId && a.tag === 'ASC' && !a.done).forEach((a) => open.push({ kind: 'Action item', text: a.text, meta: staffName(a.assignee) + ' · due ' + (a.due ? a.due.slice(5, 7) + '/' + a.due.slice(8, 10) + '/' + a.due.slice(0, 4) : 'no date') }));
+  related.forEach((x) => x.actions.filter((a) => !a.done).forEach((a) => open.push({ kind: 'Action item', text: a.text, contactId: x.id, ref: x.ref, actionId: a.id, meta: staffName(a.assignee) + ' · due ' + due(a) + ' · from ' + x.ref })));
+  if (clientId) db.actions.filter((a) => a.clientId === clientId && a.tag === 'ASC' && !a.done).forEach((a) => open.push({ kind: 'Action item', text: a.text, actionId: a.id, clientId, meta: staffName(a.assignee) + ' · due ' + due(a) }));
   return {
     openItems: open,
     contacts: related.map((x) => ({
@@ -366,6 +430,8 @@ export function contactHistory(db, q = {}) {
       interactions: x.interactions, notes: ((own) => own.concat(x.intake.story && !own.length ? [x.intake.story] : []))(x.notes.map((n) => n.text).filter((t) => !isSummaryNote(t))),
       screening: SCREENING.filter((s) => x.screening[s.key]).map((s) => s.label + ': ' + x.screening[s.key]),
       minutes: x.endedAt ? Math.round((new Date(x.endedAt) - new Date(x.startedAt)) / 60000) : 0,
+      // The full record, for the opt-in view of everything the coordinator filled in, and the step-by-step log.
+      record: { id: x.id, ref: x.ref, channel: x.channel, site: x.site, startedAt: x.startedAt, endedAt: x.endedAt, status: x.status, closedKind: x.closedKind, staff: x.staff, identity: x.identity, unverifiedName: x.unverifiedName, path: x.path, anon: x.anon, intake: x.intake, screening: x.screening, needs: x.needs, interactions: x.interactions, followUp: x.followUp, onsite: x.onsite, urgent: x.urgent, corrections: x.corrections, log: x.log, clientId: x.clientId },
       totalsText: plural(x.interactions.length, 'interaction', 'interactions')
     }))
   };

@@ -7,18 +7,17 @@ import { FilterCards, usePaged, Pager, SortHead, useSort, Table, Loaded } from '
 import { StarButton, clientRoute } from '../../ui/records.jsx';
 import { displayName, dobText, matches, sortRows } from '../../lib.js';
 import { TABLES } from '../../tables.js';
-import { ColabNotice, SearchLaunch, useColabScope } from './HubShell.jsx';
+import { SearchLaunch } from './HubShell.jsx';
 
 const T = TABLES.starred;
 
 export function Starred() {
-  const scope = useColabScope();
   const { colabs, colabTag } = useSession();
   const { query, clients } = useStarred();
   const [filter, setFilter] = usePref('starred.filter', 'all');
   const [search, setSearch] = usePref('starred.query', '');
   const [sort, onSort] = useSort('starred', T.sort);
-  const starred = clients.filter(scope.client);
+  const starred = clients;
   const cards = [{ id: 'all', label: 'All clients', count: starred.length }, { id: 'private', label: 'Privately starred', count: starred.filter((c) => c.starred === 'private').length }]
     .concat(colabs.map((k) => ({ id: k.id, label: k.name, count: starred.filter((c) => c.colabs.indexOf(k.id) >= 0).length })));
   const rows = sortRows(
@@ -31,7 +30,6 @@ export function Starred() {
   return (
     <>
       <div className="page-head"><h1 className="page-title"><Icon name="star" size={26} />My Starred Clients</h1><SearchLaunch /></div>
-      <ColabNotice />
       <section className="panel-card">
         <Loaded query={query} what="starred clients" block>{() => (
           <>

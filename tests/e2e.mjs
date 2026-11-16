@@ -87,18 +87,22 @@ async function run(mode) {
     const first = await text('.star-card .link-btn');
     await btn('Next starred clients').click();
     check('carousel pages', (await text('.star-card .link-btn')) !== first);
+    check('the sidebar says Action Items and Case Notes, without “My”', (await text('.sidebar')).includes('Action Items') && !(await text('.sidebar')).includes('My Action Items') && !(await text('.sidebar')).includes('My Case Notes'));
     await pg.selectOption('#choose-colab', 'IPV');
-    check('CoLab notice shows', (await count('.notice')) === 1);
+    await pg.waitForSelector('h1:has-text("IPV CoLab")');
+    check('choosing a CoLab goes to its home page', pg.url().endsWith('#colab/IPV') && (await count('.notice')) === 0);
     await reload();
-    check('CoLab choice stays after reload', (await pg.inputValue('#choose-colab')) === 'IPV');
-    check('CoLab choice narrows the list', (await pg.locator('.feed .chip-tag').allInnerTexts()).every((t) => t === 'IPV'));
+    check('the menu shows the CoLab you’re in', (await pg.inputValue('#choose-colab')) === 'IPV');
+    check('its home lists only its items', (await pg.locator('.feed .chip-tag').allInnerTexts()).every((t) => t === 'IPV'));
     await pg.selectOption('#choose-colab', '');
+    await pg.waitForSelector('h1.is-welcome');
+    check('All CoLabs goes back to CoLab Home', pg.url().endsWith('#home'));
     check('Show more only on cut-off notes', await pg.evaluate(() => [...document.querySelectorAll('.note-clamp')].every((c) => { const s = c.querySelector('span'); return !!c.querySelector('.more-btn') === (s.scrollWidth > s.clientWidth + 1); })));
   });
 
   await part('My Action Items', async () => {
-    await pg.getByRole('link', { name: 'My Action Items' }).click();
-    await pg.waitForSelector('h1:has-text("My Action Items")');
+    await pg.locator('.sidebar').getByRole('link', { name: 'Action Items' }).click();
+    await pg.waitForSelector('h1:has-text("Action Items")');
     const n0 = int(await btn(/^Open \(/).innerText());
     const label = await text('.feed-item label.feed-text');
     await pg.locator('.feed-item input[type=checkbox]').first().click();
@@ -122,12 +126,15 @@ async function run(mode) {
     check('every action item of Logan\'s is counted', int(await pg.locator('.filter-card').first().innerText().then((t) => '(' + t.split('\n')[0] + ')')) === db.actions.filter((a) => a.assignee === db.userId).length);
     await pg.locator('.filter-card', { hasText: 'Personal' }).click();
     check('Personal filter shows only PERSONAL', (await pg.locator('.feed .chip-tag').allInnerTexts()).every((t) => t === 'PERSONAL'));
+    check('a filter for each CoLab, on the page', (await count('.filter-card')) === 2 + db.colabs.length);
+    await pg.locator('.filter-card', { hasText: 'IPV CoLab' }).click();
+    check('a CoLab filter shows only its items', (await pg.locator('.feed .chip-tag').allInnerTexts()).every((t) => t === 'IPV'));
     await pg.locator('.filter-card').first().click();
   });
 
   await part('My Case Notes', async () => {
-    await pg.getByRole('link', { name: 'My Case Notes' }).click();
-    await pg.waitForSelector('h1:has-text("My Case Notes")');
+    await pg.locator('.sidebar').getByRole('link', { name: 'Case Notes' }).click();
+    await pg.waitForSelector('h1:has-text("Case Notes")');
     const db = await source();
     check('count matches data', (await pg.locator('.filter-card').first().innerText()).startsWith(String(db.notes.filter((n) => n.author === db.userId).length)));
     await pg.locator('.filter-card', { hasText: 'Personal' }).click();
@@ -141,7 +148,7 @@ async function run(mode) {
   });
 
   await part('Starred Clients', async () => {
-    await pg.getByRole('link', { name: 'Starred Clients' }).click();
+    await pg.locator('.sidebar').getByRole('link', { name: 'Starred Clients' }).click();
     await pg.waitForSelector('h1:has-text("My Starred Clients")');
     await btn('Client Name').click();
     const names = await pg.locator('.tr.is-row .link-btn').allInnerTexts();
@@ -696,7 +703,7 @@ async function run(mode) {
 
     await part('Sync between tabs', async () => {
       const pg2 = await ctx.newPage();
-      await pg2.goto(BASE + '#my-action-items'); await pg2.waitForSelector('h1:has-text("My Action Items")');
+      await pg2.goto(BASE + '#my-action-items'); await pg2.waitForSelector('h1:has-text("Action Items")');
       await go('#my-action-items');
       await btn(/^Open \(/).click();
       const before = await pg2.getByRole('button', { name: /^Open \(/ }).innerText();
@@ -848,17 +855,30 @@ async function run(mode) {
 
   await part('ASC: the CoLab', async () => {
     await go('#home');
-    await pg.selectOption('#choose-colab', 'ASC');
     check('ASC is a CoLab under All CoLabs', (await pg.locator('#choose-colab option').allInnerTexts()).includes('ASC'));
-    check('Home shows the ASC card', (await count('#asc-home-h')) === 1);
-    check('the sidebar links to ASC Contacts', (await count('.sidebar a[href="#asc"]')) === 1);
-    await pg.locator('.sidebar a[href="#asc"]').click();
+    await pg.selectOption('#choose-colab', 'ASC');
     await pg.waitForSelector('#asc-list-h');
+    check('choosing ASC opens ASC Contacts, its home', pg.url().endsWith('#asc') && (await pg.inputValue('#choose-colab')) === 'ASC');
+    check('no separate ASC Contacts link in the sidebar', (await count('.sidebar a[href="#asc"]')) === 0);
+    check('New Phone Contact is the top-right button', (await pg.locator('.asc-launch .asc-start button').last().innerText()).includes('New Phone Contact'));
     check('ASC Contacts page and title', (await text('h1')).includes('ASC Contacts') && (await pg.title()) === 'ASC Contacts · CoLab');
     const db = await source();
     await btn(/All contacts/).click();
     check('lists every contact', (await count('.table[aria-label="ASC contacts"] .tr.is-row')) === Math.min(10, db.contacts.length));
-    await pg.selectOption('#choose-colab', '');
+    check('contact type and coordinator have their own sortable columns', (await count('.table[aria-label="ASC contacts"] .th button:has-text("Contact type")')) === 1 && (await count('.table[aria-label="ASC contacts"] .th button:has-text("Coordinator")')) === 1);
+    await pg.selectOption('#asc-type', 'person');
+    const types = await pg.locator('.table[aria-label="ASC contacts"] .tr.is-row .td:nth-child(4)').allInnerTexts();
+    check('filter by contact type', types.length === db.contacts.filter((k) => k.channel === 'person').length && types.every((t) => t.includes('In person')));
+    await pg.selectOption('#asc-type', '');
+    await pg.selectOption('#asc-worker', 'u2');
+    const workers = await pg.locator('.table[aria-label="ASC contacts"] .tr.is-row .td:nth-child(5)').allInnerTexts();
+    check('filter by coordinator', workers.length > 0 && workers.every((t) => t === 'Dana Whitfield'));
+    await pg.selectOption('#asc-worker', '');
+    await btn('Coordinator').click();
+    const sorted = await pg.locator('.table[aria-label="ASC contacts"] .tr.is-row .td:nth-child(5)').allInnerTexts();
+    check('sort by coordinator', sorted.join('|') === [...sorted].sort().join('|'));
+    await btn('Started').click();
+    await go('#home');
   });
 
   let kid = '';
@@ -989,9 +1009,16 @@ async function run(mode) {
     check('a coordinator can’t edit a closed contact', (await count('text=Edit Closed Contact')) === 0);
     await go('#client/c65/asc');
     await pg.waitForSelector('.asc-history');
-    check('Jayden’s ASC tab shows his contacts', (await count('.asc-event')) === 3 && (await text('.info-card')).includes('Active'));
-    check('without a separate open-needs card', (await count('.info-card')) === 1);
-    check('and his latest screening', (await text('.asc-screen-grid')).includes('Sometimes'));
+    check('Jayden’s ASC tab shows his contacts', (await count('.asc-event')) === 3 && (await text('.asc-tab-cards')).includes('Active'));
+    check('flags sit left of enrollment, from what he reported', (await count('.asc-tab-cards .info-card')) === 2 && (await pg.locator('.asc-tab-cards .info-card').first().innerText()).includes('Food access'));
+    check('screening is no longer at the top', (await count('#h-asc-scr')) === 0);
+    await btn('Show Full Record', true).first().click();
+    check('the full record opens on request, with the screening', (await text('.asc-record')).includes('Sometimes') && (await text('.asc-record')).includes('Mental health'));
+    const log = await pg.locator('.asc-record .asc-log li').allInnerTexts();
+    check('and a step-by-step log of the call', log[0].includes('Started a phone call') && log.some((l) => l.includes('Matched Jayden Ruiz in MCI')) && log.some((l) => l.includes('Interaction added') && l.includes('IBHS')) && log.some((l) => l.includes('Closed the contact')));
+    check('typing is one line, not one per keystroke', log.filter((l) => l.includes('In their words')).length === 1);
+    await go('#client/c65/services');
+    check('ASC shows on the Services tab', (await text('.table[aria-label="Services"]')).includes('Administrative Service Coordination'));
     await go('#client/c2/overview');
     check('the ASC tab only shows for enrolled clients', (await count('.tabs a[href$="/asc"]')) === ((await source()).clients.find((c) => c.id === 'c2').colabs.includes('ASC') ? 1 : 0));
   });
@@ -1113,6 +1140,51 @@ async function run(mode) {
     await go('#home');
     await pg.selectOption('#switch-user', 'u1');
     await pg.waitForSelector('.side-user:has-text("Logan")');
+  });
+
+  await part('ASC: v4.2 open items, reminders, flags', async () => {
+    const B = await import('../src/data/backend-asc.js');
+    const BB = await import('../src/data/backend.js');
+    // A conversation that ends with an open action item gets a reminder for the coordinator, 3 business days out.
+    const copy = await source();
+    const k0 = B.createContact(copy, { channel: 'phone', clientId: 'c3' });
+    BB.createAction(copy, 'c3', { tag: 'ASC', text: 'Call the landlord' });
+    B.updateContact(copy, k0.id, { needs: [{ id: 'nx', name: 'Housing', urg: 'Routine', outcome: 'Still open' }] });
+    const closed = B.closeContact(copy, k0.id, {});
+    const rem = closed.actions[0];
+    check('open action items at close add a 3-business-day reminder', !!rem && rem.assignee === k0.staff && rem.due === ASC.addBusinessDays(ASC.dayOf(closed.contact.endedAt), 3) && /^Check on 1 open action item from EV-/.test(rem.text));
+    const k1 = B.createContact(copy, { channel: 'phone', clientId: 'c3' });
+    B.updateContact(copy, k1.id, { needs: [{ id: 'ny', name: 'Food', urg: 'Routine', outcome: 'Info given' }] });
+    check('no open items, no reminder', B.closeContact(copy, k1.id, {}).actions.length === 0);
+    // Flags use each area's most recent answer
+    const f = ASC.clientFlags([
+      { startedAt: '2026-11-10T15:00:00Z', ref: 'B', screening: { house: 'Yes, stable', food: 'No' }, intake: {} },
+      { startedAt: '2026-10-01T15:00:00Z', ref: 'A', screening: { house: 'No housing', su: 'Skip' }, intake: { safety: 'Yes' } }
+    ]);
+    check('flags: latest answer wins; earlier concerns kept apart; Skip ignored', f.current.map((x) => x.key).join() === 'safety,food' && f.earlier.map((x) => x.key).join() === 'house');
+
+    // Open items from earlier contacts can be acted on
+    await go('#client/c3/asc');
+    await pg.waitForSelector('.asc-open');
+    check('flags card on an enrolled client', (await text('.asc-flags')).includes('Housing insecurity'));
+    const before = (await source()).actions.filter((a) => a.clientId === 'c3' && !a.done).length;
+    await pg.locator('.asc-open').getByRole('button', { name: 'Mark Done' }).first().click();
+    await pg.waitForTimeout(300);
+    check('Mark Done completes the action item', (await source()).actions.filter((a) => a.clientId === 'c3' && !a.done).length === before - 1);
+    await pg.locator('.asc-open').getByRole('button', { name: /^View EV-/ }).first().click();
+    await pg.waitForSelector('.asc-closed');
+    check('an open need links to the contact it came from', /#asc\/contact\/.+\/wrap-up$/.test(pg.url()));
+    // From inside a new contact, carry an open need over
+    await go('#client/c3/asc');
+    await btn('New Phone Contact', true).click();
+    await pg.waitForSelector('.asc-safety');
+    const id = contactId();
+    await btn('History', true).click();
+    await pg.waitForSelector('.modal .asc-open');
+    await pg.locator('.modal').getByRole('button', { name: 'Add to This Contact' }).first().click();
+    await pg.waitForSelector('.modal .asc-open-done');
+    check('Add to This Contact carries the need over', (await contactOf(id)).needs.some((n) => n.name === 'Housing') && (await text('.modal .asc-open')).includes('On this contact'));
+    await pg.keyboard.press('Escape');
   });
 
   const openHistory = async () => { await go(`#asc/contact/${kid}/wrap-up`); await btn('History', true).click(); };
