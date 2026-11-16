@@ -284,6 +284,7 @@ export function closeContact(db, id, body = {}) {
   k.endedAt = new Date().toISOString();
   // The automatic summary: a case note on the client's record, or on the contact while the person is anonymous.
   const notes = [addNote(db, k, summaryNote(k, staffLabel(db, k.staff)), k.staff)].filter(Boolean);
+  k.summarized = true; // contacts closed before v4.0.2 have no summary note
   return { contact: full(db, k), notes };
 }
 

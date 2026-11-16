@@ -209,6 +209,7 @@ export function normalizeContact(k) {
     actions: arr(k.actions).map((x) => ({ id: str(x.id), text: str(x.text), assignee: str(x.assignee), due: str(x.due), done: bool(x.done), edited: bool(x.edited) })),
     links: arr(k.links).map((l) => ({ actionId: str(l.actionId), ixId: strOrNull(l.ixId), auto: strOrNull(l.auto) })),
     urgent: k.urgent ? { dest: str(k.urgent.dest), how: str(k.urgent.how), need: str(k.urgent.need), note: str(k.urgent.note), at: str(k.urgent.at) } : null,
+    summarized: bool(k.summarized),
     correction: k.correction ? { by: str(k.correction.by), at: str(k.correction.at), reason: str(k.correction.reason), changed: arr(k.correction.changed).map(str) } : null,
     corrections: arr(k.corrections).map((c) => ({ by: str(c.by), at: str(c.at), reason: str(c.reason), changed: arr(c.changed).map(str) })),
     client: k.client ? normalizeClientSummary(k.client) : null,

@@ -68,7 +68,7 @@ function Closed({ k }) {
         <span>{usDate(k.startedAt)}, {clockTime(k.startedAt)}–{clockTime(k.endedAt)} · {minutesBetween(k.startedAt, k.endedAt)} min</span>
       </div>
       <ul className="asc-summary">
-        <li><Icon name="notes" size={14} />Summary saved as a case note{k.clientId ? ' on ' + k.client.first + '’s record' : ''}.</li>
+        {k.summarized && <li><Icon name="notes" size={14} />Summary saved as a case note{k.clientId ? ' on ' + k.client.first + '’s record' : ''}.</li>}
         <li className={issues.length ? 'is-warn' : ''}><Icon name={issues.length ? 'alert' : 'checkSmall'} size={14} />{report}</li>
       </ul>
       {k.corrections.length > 0 && (
