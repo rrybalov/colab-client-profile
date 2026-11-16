@@ -118,6 +118,10 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 
 **StateReport** `{ period: "YYYY-MM", rows, totals, notSent, submission }`. `rows` are `[{ id, contactId, ref, clientId, clientName, mci, code, date, units, place, coordinator, problems[] }]`, one per interaction on a closed contact with a verified client started in that month. `totals` is `{ contacts, clients, rows, units, problems }`; `notSent` is `{ open, anonymous, unverified }`; `submission` is `{ by, byName, at, rows, units, contacts, version, changedSince[] } | null`, where `changedSince` lists Event IDs corrected after it was marked submitted.
 
+### IPV (High Risk Team Review)
+
+**Referral** `{ id, clientId, status: intake/review/reviewed, sid, doc, source: arrest/manual, arrest: { otn, date, agency, charge, filed, effective } | null, risk[], activity: [{ at, by, byName, text }] }`, plus read-only `client` (summary), `mci`, `agencyGroup` (`pittsburgh` or `other`, from the arresting agency) and `lastActivity` (the newest activity time). `activity` is newest first and can't be set by a client.
+
 **ContactSummary** (lists) `{ id, ref, channel, site, startedAt, endedAt, status, closedKind, staff, clientId, identity, path, clientName, anonName, needs: [{ name, urg, outcome }], ixCount, ixMin, ixUnits }`
 
 ## Endpoints
@@ -165,6 +169,11 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 | `GET /asc/reports/:period` | `StateReport` | Supervisors only. `period` is `YYYY-MM`. |
 | `POST /asc/reports/:period/submit` | `StateReport` | Supervisors only. Records that the file was sent; `400` if there are no lines or any line has problems. Submitting again bumps `version`. |
 
+| `GET /ipv/referrals` | `Referral[]` | Every IPV referral. The app splits them by status, filters and sorts. |
+| `GET /ipv/referrals/:id` | `Referral` | |
+| `PUT /ipv/referrals/:id/status` | `Referral` | Body `{ status }`. Adds an activity line with who and when. `400` for any other status. |
+| `POST /ipv/referrals/status` | `Referral[]` | Body `{ ids[], status }`: move several at once. |
+
 **Automatic follow-ups.** When a contact has a client and `followUp.ok` is `Yes`, the server creates two action items, tagged `ASC` and assigned to the contact's coordinator: a follow-up 7 business days after the contact (weekends skipped) and a check-in 90 days after, moved to Monday if it lands on a weekend. Changing the way to reach them rewrites the first one's text; answering `No` deletes any that aren't done. County holidays are not skipped yet [not decided].
 
 ## What the app does with responses
@@ -178,4 +187,5 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 - Paging for very long note or action-item lists. Today each client's list comes back whole.
 - Who may see restricted notes. The server should filter them; the app shows whatever it receives.
 - Choosing a CoLab tag for a new note or action item. The design has no control for it yet, so new ones are `PERSONAL`, except during an ASC contact, where they are `ASC`.
+- IPV: where referrals come from (the arrest data feed), who may move them, the case conference calendar, and what the Reports link opens.
 - ASC: the state's file format for the monthly report (the CSV columns are a placeholder) and how it's sent, real service codes and place-of-service codes (shown as `[code TBD]`), the state's unit rounding rule, county holidays in the 7-day follow-up, consent forms and document scanning (the prototype records that they happened), and the referral step that follows intake.

@@ -144,4 +144,5 @@ export function createReport(db, body) {
 
 // ASC contacts live in their own module.
 export * from './backend-asc.js';
+export * from './backend-ipv.js';
 import { DEMO_USERS, ascReady } from './backend-asc.js';

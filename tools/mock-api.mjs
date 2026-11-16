@@ -58,6 +58,10 @@ const routes = [
   ['POST', /^\/asc\/closeouts\/([^/]+)\/withdraw$/, (m) => api.cancelCloseout(db, m[1])],
   ['POST', /^\/asc\/closeouts\/([^/]+)\/decide$/, (m, q, body) => api.decideCloseout(db, m[1], body)],
   ['POST', /^\/clients\/([^/]+)\/asc\/discharge$/, (m, q, body) => api.dischargeClient(db, m[1], body)],
+  ['GET', /^\/ipv\/referrals$/, () => api.listReferrals(db)],
+  ['GET', /^\/ipv\/referrals\/([^/]+)$/, (m) => api.getReferral(db, m[1])],
+  ['PUT', /^\/ipv\/referrals\/([^/]+)\/status$/, (m, q, body) => api.setReferralStatus(db, m[1], body)],
+  ['POST', /^\/ipv\/referrals\/status$/, (m, q, body) => api.setReferralsStatus(db, body)],
   ['GET', /^\/asc\/reports\/(\d{4}-\d{2})$/, (m) => api.stateReport(db, m[1])],
   ['POST', /^\/asc\/reports\/(\d{4}-\d{2})\/submit$/, (m) => api.submitReport(db, m[1])],
   // Test helpers, not part of the API contract.

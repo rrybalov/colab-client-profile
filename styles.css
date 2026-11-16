@@ -1157,3 +1157,115 @@ span.src-tag { cursor: default; }
 .asc-closeout-list li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 10px; border-radius: var(--radius); background: var(--smoke); }
 .asc-closeout-list li.is-warn { background: #FFF9EE; color: #5C3D0B; }
 .asc-closeout-list .icon { flex: 0 0 auto; margin-top: 2px; color: var(--slate); }
+
+/* ---------- v4.4: CoLab tool sidebars, view bars, IPV High Risk Team Review ---------- */
+.side-select.is-top { margin: 0 2px 12px; min-height: 40px; font-size: 14px; font-weight: 500; }
+.side-nav { display: flex; flex-direction: column; gap: 2px; }
+.side-link.is-open { background: var(--white); color: var(--dark-blue); font-weight: 700; }
+.side-link .icon:last-child:not(:first-child) { margin-left: 2px; }
+.side-sub { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px; padding-left: 30px; }
+.side-sublink { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 30px; padding: 4px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--dark-blue); font-size: 13px; text-align: left; text-decoration: none; }
+.side-sublink:hover { background: rgba(255, 255, 255, .55); }
+.side-sublink[aria-current] { font-weight: 700; box-shadow: inset 3px 0 0 var(--dark-blue); }
+.side-count { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #FBEBD3; color: #5C3D0B; font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
+@media (max-width: 760px) {
+  .side-select.is-top { margin: 0; order: 2; }
+  .side-nav { flex-direction: row; flex-wrap: wrap; order: 3; width: 100%; }
+  .side-sub, .sidebar .side-divider { display: none; }
+}
+/* A page's views as one bar of links */
+.view-bar { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 4px; margin-bottom: 20px; border-radius: 999px; background: var(--ash); }
+.view-seg { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 6px 10px; border-radius: 999px; color: var(--dark-blue); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.view-seg:hover { background: rgba(38, 38, 115, .08); color: var(--dark-blue); }
+.view-seg[aria-current="page"] { background: var(--dark-blue); color: var(--white); }
+.view-seg .icon.is-intake { color: #2D5BD0; }
+.view-seg .icon.is-review { color: #9A6A1F; }
+.view-seg .icon.is-reviewed { color: var(--green-text); }
+.view-seg[aria-current="page"] .icon { color: currentColor; }
+.view-count { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: rgba(38, 38, 115, .1); font-size: 11px; font-weight: 700; text-align: center; }
+.view-seg[aria-current="page"] .view-count { background: rgba(255, 255, 255, .2); }
+@media (max-width: 640px) {
+  .view-bar { grid-auto-flow: row; grid-template-columns: 1fr 1fr; border-radius: var(--radius-lg); }
+  .view-seg { border-radius: var(--radius); }
+}
+.card-head.is-stacked { flex-direction: column; align-items: flex-start; gap: 4px; }
+.card-sub { font-size: 14px; color: var(--slate); }
+/* IPV list */
+.ipv-toolbar { flex-wrap: wrap; align-items: center; gap: 10px; }
+.ipv-toolbar .is-search { flex: 1 1 260px; max-width: 380px; }
+.ipv-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.ipv-chip { min-height: 36px; padding: 6px 12px; border: 1.5px solid var(--slate); border-radius: var(--radius); background: var(--white); color: var(--black); font-size: 12px; font-weight: 600; }
+.ipv-chip[aria-pressed="true"] { border-color: var(--blue); color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+.ipv-download { width: 40px; height: 40px; }
+.ipv-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--smoke); font-size: 13px; }
+.ipv-list .tr > :first-child { padding-top: 4px; }
+.ipv-list .tr input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--dark-blue); }
+.ipv-list .tr.is-picked { background: #EEF0FF; }
+.ipv-list .tr > :nth-child(1), .ipv-list .tr > :nth-child(2) { position: sticky; z-index: 1; background: inherit; }
+.ipv-list .tr > :nth-child(1) { left: 0; }
+.ipv-list .tr > :nth-child(2) { left: 40px; }
+.ipv-list .tr.is-head, .ipv-list .tr.is-row { background: var(--white); }
+.ipv-list .tr.is-row:hover { background: var(--smoke); }
+.ipv-list .tr.is-row.is-picked { background: #EEF0FF; }
+.ipv-ids { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ipv-none { color: var(--slate); font-size: 12px; }
+.ipv-risk { display: block; font-size: 12px; }
+span.ipv-risk + span.ipv-risk { margin-top: 2px; }
+/* Status: colored, with a menu to move it */
+.ipv-status { position: relative; display: inline-flex; align-items: center; min-height: 30px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #10163A; }
+.ipv-status.is-intake { background: #A9C4FF; }
+.ipv-status.is-review { background: #E7C27D; }
+.ipv-status.is-reviewed { background: #3FE0BC; }
+.ipv-status > .icon:first-child { position: absolute; left: 10px; pointer-events: none; }
+.ipv-status select { appearance: none; -webkit-appearance: none; min-height: 30px; padding: 4px 42px 4px 30px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.ipv-status select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.ipv-status-chev { position: absolute; right: 0; top: 0; bottom: 0; width: 30px; display: grid; place-items: center; border-left: 1.5px solid rgba(16, 22, 58, .25); pointer-events: none; }
+/* Referral profile */
+.ipv-head { margin: 14px 0 20px; }
+.ipv-head .client-name { flex-wrap: wrap; gap: 14px; }
+.ipv-head .ids { flex: 0 1 420px; margin-left: auto; }
+.ipv-section { scroll-margin-top: 16px; }
+.ipv-section + .ipv-section { margin-top: 20px; }
+.ipv-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 16px; }
+.ipv-section-title { display: flex; align-items: center; gap: 10px; margin-right: auto; font-size: 22px; font-weight: 500; color: var(--black); }
+.ipv-section-title:focus { outline: none; }
+.ipv-section-title:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 4px; }
+.ipv-section-head > .segmented { flex: 0 1 460px; }
+.ipv-section-head .icon.flip { transform: rotate(180deg); }
+.ipv-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.ipv-pairs { display: grid; grid-template-columns: minmax(110px, 38%) minmax(0, 1fr); gap: 12px 16px; font-size: 13px; }
+.ipv-pairs dt { font-weight: 700; color: var(--slate); }
+.ipv-pairs dd { overflow-wrap: anywhere; }
+.ipv-activity { display: flex; flex-direction: column; font-size: 14px; }
+.ipv-activity li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); }
+.ipv-activity li:first-child { border-top: 0; }
+.ipv-activity time { color: var(--slate); font-variant-numeric: tabular-nums; }
+.ipv-activity small { display: block; color: var(--slate); font-size: 12px; }
+.ipv-cases { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.ipv-cases li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.ipv-cases small { flex-basis: 100%; color: var(--slate); }
+.ipv-cases .ipv-risk { display: inline-block; padding: 0 6px; border-radius: 999px; background: #FBE7E4; color: #7A2318; font-size: 11px; font-weight: 700; }
+.ipv-foot { margin-top: 20px; }
+@media (max-width: 640px) {
+  .ipv-chips { margin-left: 0; }
+  .ipv-activity li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .ipv-head .ids { margin-left: 0; }
+}
+.ipv-head .ids { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.page-head.asc-launch { flex-wrap: wrap; gap: 12px 16px; }
+/* At laptop widths the middle columns scroll; who it is and the status stay in view. */
+.ipv-list .tr > :last-child { position: sticky; right: 0; z-index: 1; background: inherit; padding-left: 8px; }
+.ipv-ids span { white-space: nowrap; }
+.ipv-list .tr > :nth-child(1), .ipv-list .tr > :nth-child(2), .ipv-list .tr > :last-child { align-self: stretch; }
+@media (max-width: 640px) { .ipv-list .tr > :nth-child(1), .ipv-list .tr > :nth-child(2), .ipv-list .tr > :last-child { position: static; } }
+/* The status pill's edge needs 3:1 against the row, so the select carries the fill and a darker border. */
+.ipv-status.is-intake, .ipv-status.is-review, .ipv-status.is-reviewed { background: transparent; }
+.ipv-status select { border: 1.5px solid; }
+.ipv-status.is-intake select { background: #A9C4FF; border-color: #3A5FC4; }
+.ipv-status.is-review select { background: #E7C27D; border-color: #8A5D14; }
+.ipv-status.is-reviewed select { background: #3FE0BC; border-color: #0B7C63; }
+.ipv-status > .icon:first-child, .ipv-status-chev { z-index: 1; }
+.ipv-status select { padding: 4px 36px 4px 28px; max-width: 100%; }
+.ipv-status > .icon:first-child { left: 9px; }
+.ipv-status-chev { width: 28px; }
+.ipv-list .tr > :last-child { padding-left: 4px; padding-right: 2px; }

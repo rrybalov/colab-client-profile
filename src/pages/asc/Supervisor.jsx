@@ -14,31 +14,10 @@ import { SearchLaunch } from '../hub/HubShell.jsx';
 import { whenText, personLabel } from './parts.jsx';
 import { CloseoutStatus } from './Closeout.jsx';
 
-export const ASC_TABS = [['', 'Contacts'], ['closeouts', 'Close-Outs'], ['team', 'Team', true], ['reporting', 'State Reporting', true]];
-
-export function AscNav({ current = '' }) {
-  const { user, me } = useSession();
-  const sup = user.role === SUPERVISOR;
-  const { closeouts } = useCloseouts();
-  const waiting = closeouts.filter((r) => r.status === 'pending' && (sup || r.by === me)).length;
-  return (
-    <div className="tabs-wrap asc-nav">
-      <nav className="tabs" aria-label="ASC pages">
-        {ASC_TABS.filter((t) => sup || !t[2]).map(([id, label]) => (
-          <Link key={id || 'contacts'} className="tab" to={id ? '#asc/' + id : '#asc'} focus={false} aria-current={current === id ? 'page' : undefined}>
-            {label}{id === 'closeouts' && waiting > 0 && <span className="tab-count" aria-label={waiting + ' waiting'}>{waiting}</span>}
-          </Link>
-        ))}
-      </nav>
-    </div>
-  );
-}
-
 function Head({ title, icon, sub }) {
   return (
     <>
       <div className="page-head"><h1 className="page-title"><Icon name={icon} size={28} />{title}</h1><SearchLaunch /></div>
-      <AscNav current={sub} />
     </>
   );
 }

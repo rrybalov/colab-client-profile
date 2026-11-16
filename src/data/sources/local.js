@@ -3,7 +3,7 @@
 import * as api from '../backend.js';
 import { buildSeed, enrich, SEED_VERSION } from '../seed.js';
 import { seedAsc } from '../asc-seed.js';
-import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange, normalizeTeam, normalizeReassign, normalizeCloseout, normalizeDischarge, normalizeReport } from '../schema.js';
+import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange, normalizeTeam, normalizeReassign, normalizeCloseout, normalizeDischarge, normalizeReport, normalizeReferral } from '../schema.js';
 
 const KEY = 'colab.db';
 
@@ -98,6 +98,10 @@ export function createLocalSource() {
     decideCloseout: (id, body) => run((d) => api.decideCloseout(d, id, body), true).then(normalizeDischarge),
     dischargeClient: (clientId, body) => run((d) => api.dischargeClient(d, clientId, body), true).then(normalizeDischarge),
     getStateReport: (period) => run((d) => api.stateReport(d, period)).then(normalizeReport),
+    listReferrals: () => run((d) => api.listReferrals(d), true).then((l) => l.map(normalizeReferral)),
+    getReferral: (id) => run((d) => api.getReferral(d, id)).then(normalizeReferral),
+    setReferralStatus: (id, status) => run((d) => api.setReferralStatus(d, id, { status }), true).then(normalizeReferral),
+    setReferralsStatus: (ids, status) => run((d) => api.setReferralsStatus(d, { ids, status }), true).then((l) => l.map(normalizeReferral)),
     submitStateReport: (period) => run((d) => api.submitReport(d, period), true).then(normalizeReport)
   };
 }

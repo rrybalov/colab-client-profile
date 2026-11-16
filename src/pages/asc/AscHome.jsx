@@ -1,16 +1,15 @@
 // ASC Contacts, the ASC CoLab's home: every call and visit, filtered and sorted, and where to start a new one.
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Icon } from '../../ui/icons.jsx';
 import { usePref } from '../../state/store.jsx';
 import { useSession } from '../../state/data.js';
 import { useContacts, useAscMutations } from '../../state/asc.js';
-import { Link, navigate } from '../../router.jsx';
-import { Loaded, Table, FilterCards, usePaged, Pager, SortHead, useSort, SearchBox, SelectBox } from '../../ui/controls.jsx';
+import { Link, navigate, ASC_VIEWS } from '../../router.jsx';
+import { Loaded, Table, ViewBar, usePaged, Pager, SortHead, useSort, SearchBox, SelectBox } from '../../ui/controls.jsx';
 import { plural, CHANNELS } from '../../data/asc.js';
 import { sortRows } from '../../lib.js';
-import { SearchLaunch } from '../hub/HubShell.jsx';
 import { channelIcon, channelLabel, personLabel, StatusPill, whenText } from './parts.jsx';
-import { AscNav, CloseoutsPage, TeamPage, ReportingPage } from './Supervisor.jsx';
+import { CloseoutsPage, TeamPage, ReportingPage } from './Supervisor.jsx';
 
 // Contact type and coordinator are their own columns, so they can be sorted and filtered.
 const COLS = [
@@ -54,13 +53,15 @@ const SUBPAGES = { closeouts: CloseoutsPage, team: TeamPage, reporting: Reportin
 
 export function AscHome({ route }) {
   const Sub = route && SUBPAGES[route.sub];
-  return Sub ? <Sub /> : <Contacts />;
+  return Sub ? <Sub /> : <Contacts route={route || {}} />;
 }
 
-function Contacts() {
+const VIEW_LIST = { 'in-progress': 'open', mine: 'mine', closed: 'closed', all: 'all' };
+
+function Contacts({ route }) {
   const { me, staffName } = useSession();
   const { query, contacts: raw } = useContacts({});
-  const [chosen, setFilter] = usePref('asc.filter', null);
+  const [saved, setSaved] = usePref('asc.view', null);
   const [type, setType] = usePref('asc.type', '');
   const [worker, setWorker] = usePref('asc.worker', '');
   const [search, setSearch] = usePref('asc.query', '');
@@ -68,8 +69,10 @@ function Contacts() {
   const contacts = raw.map((k) => ({ ...k, startedTs: new Date(k.startedAt).getTime(), person: k.clientId ? k.clientName : personLabel(k), typeLabel: channelLabel(k.channel), staffLabel: staffName(k.staff), statusLabel: STATUS[k.status] }));
   const mine = contacts.filter((k) => k.staff === me);
   const lists = { open: contacts.filter((k) => k.status === 'open'), mine, closed: contacts.filter((k) => k.status === 'closed'), all: contacts };
-  // Starts on contacts in progress, or on all of them when none are.
-  const filter = chosen || (lists.open.length ? 'open' : 'all');
+  // Starts on contacts in progress, or on all of them when none are. The view is in the address (#asc/closed).
+  const view = route.view || saved || (lists.open.length ? 'in-progress' : 'all');
+  const filter = VIEW_LIST[view];
+  useEffect(() => { if (query.ready && view !== saved) { setSaved(view); p.reset(); } }, [view, query.ready]);
   const q = search.trim().toLowerCase();
   const list = sortRows((lists[filter] || lists.open).filter((k) => (!type || k.channel === type) && (!worker || k.staff === worker)
     && (!q || (k.ref + ' ' + k.person + ' ' + k.needs.map((n) => n.name).join(' ')).toLowerCase().indexOf(q) >= 0)), sort, COLS);
@@ -78,20 +81,12 @@ function Contacts() {
   const reset = (fn) => (v) => { fn(v); p.reset(); };
   return (
     <>
-      <div className="page-head"><h1 className="page-title"><Icon name="headset" size={28} />ASC Contacts</h1><SearchLaunch /></div>
-      <AscNav current="" />
-      <section className="panel-card asc-launch" aria-labelledby="asc-start-h">
-        <div className="card-head">
-          <h2 className="card-title" id="asc-start-h">Administrative Service Coordination</h2>
-          <StartButtons />
-        </div>
-      </section>
+      <div className="page-head asc-launch"><h1 className="page-title"><Icon name="headset" size={28} />ASC Contacts</h1><StartButtons /></div>
+      <ViewBar label="Contact views" items={Object.keys(ASC_VIEWS).map((id) => ({ to: '#asc/' + id, label: ASC_VIEWS[id], count: query.ready ? lists[VIEW_LIST[id]].length : null, current: id === view }))} />
       <section className="panel-card" aria-labelledby="asc-list-h">
         <div className="card-head"><h2 className="card-title" id="asc-list-h"><Icon name="history" size={22} />Contacts {query.ready && <span>({list.length} of {contacts.length})</span>}</h2></div>
         <Loaded query={query} what="contacts">{() => (
           <>
-            <FilterCards label="Show contacts" value={filter} onChange={(v) => { setFilter(v); p.reset(); }}
-              cards={[{ id: 'open', count: lists.open.length, label: 'In progress' }, { id: 'mine', count: mine.length, label: 'Mine' }, { id: 'closed', count: lists.closed.length, label: 'Closed' }, { id: 'all', count: contacts.length, label: 'All contacts' }]} />
             <div className="toolbar">
               <SearchBox id="asc-search" label="Search contacts" placeholder="Search by person, event ID or need" value={search} onChange={reset(setSearch)} />
               <SelectBox id="asc-type" label="Contact type" placeholder="All contact types" value={type} onChange={reset(setType)} options={Object.entries(CHANNELS)} />

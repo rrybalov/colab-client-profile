@@ -262,3 +262,17 @@ export const normalizeReport = (r) => ({
   notSent: { open: num(r.notSent && r.notSent.open), anonymous: num(r.notSent && r.notSent.anonymous), unverified: num(r.notSent && r.notSent.unverified) },
   submission: r.submission ? { by: str(r.submission.by), byName: str(r.submission.byName), at: str(r.submission.at), rows: num(r.submission.rows), units: num(r.submission.units), contacts: num(r.submission.contacts), version: num(r.submission.version), changedSince: arr(r.submission.changedSince).map(str) } : null
 });
+
+// ------------------------------------------------------------------ IPV referrals
+const IPV_STATUSES = ['intake', 'review', 'reviewed'];
+export const normalizeReferral = (r) => {
+  const o = obj(r), a = o.arrest ? obj(o.arrest) : null;
+  return {
+    id: str(o.id), clientId: str(o.clientId), status: IPV_STATUSES.indexOf(o.status) >= 0 ? o.status : 'intake',
+    sid: str(o.sid), doc: str(o.doc), mci: str(o.mci), source: o.source === 'manual' ? 'manual' : 'arrest',
+    arrest: a ? { otn: str(a.otn), date: str(a.date), agency: str(a.agency), charge: str(a.charge), filed: str(a.filed), effective: str(a.effective) } : null,
+    agencyGroup: str(o.agencyGroup), risk: arr(o.risk).map(str), lastActivity: str(o.lastActivity),
+    client: o.client ? normalizeClientSummary(o.client) : null,
+    activity: arr(o.activity).map((x) => ({ at: str(x.at), by: str(x.by), byName: str(x.byName), text: str(x.text) }))
+  };
+};

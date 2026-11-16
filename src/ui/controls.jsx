@@ -3,6 +3,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './icons.jsx';
 import { useApi, usePref, useToastState } from '../state/store.jsx';
+import { Link } from '../router.jsx';
 
 export function Tip({ label, children, size = 14 }) {
   return (
@@ -249,5 +250,18 @@ export function Field({ id, label, value, onChange, required, tip, textarea, wid
         ? <textarea className="input" id={id} rows={3} value={value} onChange={(e) => onChange(e.target.value)} {...input} />
         : <input className="input" id={id} value={value} onChange={(e) => onChange(e.target.value)} {...input} />}
     </div>
+  );
+}
+
+// A page's views as one bar of links (IPV statuses, ASC contact views). Each view has its own address.
+export function ViewBar({ label, items }) {
+  return (
+    <nav className="view-bar" aria-label={label}>
+      {items.map((i) => (
+        <Link key={i.to} className="view-seg" to={i.to} focus={false} aria-current={i.current ? 'page' : undefined}>
+          {i.icon && <Icon name={i.icon} size={15} className={i.tone ? 'is-' + i.tone : ''} />}{i.label}{i.count != null && <span className="view-count">{i.count}</span>}
+        </Link>
+      ))}
+    </nav>
   );
 }

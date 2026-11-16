@@ -5,7 +5,7 @@ import { readConfig } from './config.js';
 import { createDataSource } from './data/index.js';
 import { StoreProvider, useData } from './state/store.jsx';
 import { useSessionQuery } from './state/data.js';
-import { useRoute, HUB_PAGES, CLIENT_TABS, ASC_PAGES } from './router.jsx';
+import { useRoute, HUB_PAGES, CLIENT_TABS, ASC_PAGES, ASC_VIEWS, IPV_VIEWS } from './router.jsx';
 import { HubShell } from './pages/hub/HubShell.jsx';
 import { Home, ColabHome } from './pages/hub/Home.jsx';
 import { MyActions, MyNotes } from './pages/hub/MyWork.jsx';
@@ -13,6 +13,8 @@ import { Starred } from './pages/hub/Starred.jsx';
 import { ClientPage } from './pages/client/ClientPage.jsx';
 import { AscHome } from './pages/asc/AscHome.jsx';
 import { ContactPage } from './pages/asc/ContactPage.jsx';
+import { IpvHome } from './pages/ipv/IpvHome.jsx';
+import { ReferralPage } from './pages/ipv/Referral.jsx';
 import { Modals } from './modals/index.jsx';
 import { Toast, Loading, LoadError } from './ui/controls.jsx';
 import { fullName } from './lib.js';
@@ -27,6 +29,9 @@ function useTitle(route) {
   const colab = route.page === 'colab' && session ? session.colabs.find((x) => x.id === route.id) : null;
   let title = route.page === 'colab' ? (colab ? colab.name : 'CoLab') : HUB_PAGES[route.page] || 'CoLab';
   if (route.page === 'asc' && route.sub) title = 'ASC ' + ASC_PAGES[route.sub];
+  if (route.page === 'asc' && route.view) title = 'ASC Contacts · ' + ASC_VIEWS[route.view];
+  if (route.page === 'ipv') title = 'IPV · ' + IPV_VIEWS[route.view];
+  if (route.page === 'referral') { const r = queries['ipv-referral:' + route.id]; const rc = r && r.data && r.data.client; title = (rc ? rc.first + ' ' + rc.last : 'Referral') + ' · IPV'; }
   if (route.page === 'client') {
     const c = clients[route.id];
     const part = SUBPAGES[route.sub] || (CLIENT_TABS.find((t) => t[0] === route.tab) || [0, 'Client'])[1];
@@ -50,8 +55,10 @@ function App() {
   let page;
   if (route.page === 'client') page = <ClientPage route={route} />;
   else if (route.page === 'contact') page = <ContactPage route={route} />;
-  else if (route.page === 'colab') page = <HubShell page="colab" colab={route.id}><ColabHome id={route.id} /></HubShell>;
-  else { const P = HUB[route.page] || Home; page = <HubShell page={route.page}><P route={route} /></HubShell>; }
+  else if (route.page === 'colab') page = <HubShell route={route}><ColabHome id={route.id} /></HubShell>;
+  else if (route.page === 'ipv') page = <HubShell route={route}><IpvHome route={route} /></HubShell>;
+  else if (route.page === 'referral') page = <HubShell route={route}><ReferralPage route={route} /></HubShell>;
+  else { const P = HUB[route.page] || Home; page = <HubShell route={route}><P route={route} /></HubShell>; }
   return <><a className="skip-link" href="#main" onClick={skip}>Skip to main content</a>{page}<Modals /><Toast /></>;
 }
 

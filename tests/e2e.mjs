@@ -88,12 +88,12 @@ async function run(mode) {
     await btn('Next starred clients').click();
     check('carousel pages', (await text('.star-card .link-btn')) !== first);
     check('the sidebar says Action Items and Case Notes, without “My”', (await text('.sidebar')).includes('Action Items') && !(await text('.sidebar')).includes('My Action Items') && !(await text('.sidebar')).includes('My Case Notes'));
-    await pg.selectOption('#choose-colab', 'IPV');
-    await pg.waitForSelector('h1:has-text("IPV CoLab")');
-    check('choosing a CoLab goes to its home page', pg.url().endsWith('#colab/IPV') && (await count('.notice')) === 0);
+    await pg.selectOption('#choose-colab', 'ACGO');
+    await pg.waitForSelector('h1:has-text("ACGO")');
+    check('choosing a CoLab goes to its home page', pg.url().endsWith('#colab/ACGO') && (await count('.notice')) === 0);
     await reload();
-    check('the menu shows the CoLab you’re in', (await pg.inputValue('#choose-colab')) === 'IPV');
-    check('its home lists only its items', (await pg.locator('.feed .chip-tag').allInnerTexts()).every((t) => t === 'IPV'));
+    check('the menu shows the CoLab you’re in', (await pg.inputValue('#choose-colab')) === 'ACGO');
+    check('its home lists only its items', (await pg.locator('.feed .chip-tag').allInnerTexts()).every((t) => t === 'ACGO'));
     await pg.selectOption('#choose-colab', '');
     await pg.waitForSelector('h1.is-welcome');
     check('All CoLabs goes back to CoLab Home', pg.url().endsWith('#home'));
@@ -859,11 +859,13 @@ async function run(mode) {
     await pg.selectOption('#choose-colab', 'ASC');
     await pg.waitForSelector('#asc-list-h');
     check('choosing ASC opens ASC Contacts, its home', pg.url().endsWith('#asc') && (await pg.inputValue('#choose-colab')) === 'ASC');
-    check('no separate ASC Contacts link in the sidebar', (await count('.sidebar a[href="#asc"]')) === 0);
+    check('the sidebar switches to ASC’s own pages', (await pg.locator('.sidebar .side-nav > .side-link').allInnerTexts()).map((t) => t.replace(/\d+/g, '').trim()).join('|') === 'Contacts|Close-Outs' && (await count('.sidebar a[href="#my-action-items"]')) === 0);
     check('New Phone Contact is the top-right button', (await pg.locator('.asc-launch .asc-start button').last().innerText()).includes('New Phone Contact'));
     check('ASC Contacts page and title', (await text('h1')).includes('ASC Contacts') && (await pg.title()) === 'ASC Contacts · CoLab');
     const db = await source();
-    await btn(/All contacts/).click();
+    await pg.locator('.view-bar').getByRole('link', { name: /All Contacts/ }).click();
+    await pg.waitForTimeout(150);
+    check('each view is its own address, and the sidebar agrees', pg.url().endsWith('#asc/all') && (await text('.side-sublink[aria-current="page"]')) === 'All Contacts');
     check('lists every contact', (await count('.table[aria-label="ASC contacts"] .tr.is-row')) === Math.min(10, db.contacts.length));
     check('contact type and coordinator have their own sortable columns', (await count('.table[aria-label="ASC contacts"] .th button:has-text("Contact type")')) === 1 && (await count('.table[aria-label="ASC contacts"] .th button:has-text("Coordinator")')) === 1);
     await pg.selectOption('#asc-type', 'person');
@@ -1223,7 +1225,7 @@ async function run(mode) {
 
     // A coordinator asks to close out a client
     await go('#asc');
-    check('coordinators don’t see Team or State Reporting', (await pg.locator('.asc-nav .tab').allInnerTexts()).map((t) => t.replace(/\d+/g, '').trim()).join('|') === 'Contacts|Close-Outs');
+    check('coordinators don’t see Team or State Reporting', (await pg.locator('.sidebar .side-nav > .side-link').allInnerTexts()).map((t) => t.replace(/\d+/g, '').trim()).join('|') === 'Contacts|Close-Outs');
     await go('#asc/team');
     check('the Team page is for supervisors', (await text('#main')).includes('Only ASC supervisors'));
     await go('#client/c14/asc');
@@ -1249,7 +1251,7 @@ async function run(mode) {
     await pg.waitForSelector('.side-user:has-text("Priya")');
     await go('#asc/closeouts');
     await pg.waitForSelector('.asc-co');
-    check('supervisors see every request waiting, counted on the tab', (await count('.asc-co')) === 2 && (await text('.asc-nav .tab-count')) === '2');
+    check('supervisors see every request waiting, counted on the tab', (await count('.asc-co')) === 2 && (await text('.sidebar .side-count')) === '2');
     const before = (await source()).actions.filter((a) => a.clientId === 'c14' && !a.done && /^k[ab]/.test(a.id)).length;
     await pg.locator('.asc-co', { hasText: 'Rosa Graham' }).getByRole('button', { name: 'Discharge' }).click();
     await pg.waitForSelector('.modal');
@@ -1322,6 +1324,93 @@ async function run(mode) {
     await go('#home');
     await pg.selectOption('#switch-user', 'u1');
     await pg.waitForSelector('.side-user:has-text("Logan")');
+  });
+
+  await part('IPV: High Risk Team Review', async () => {
+    const B = await import('../src/data/backend.js');
+    const copy = await source();
+    let err = ''; try { B.setReferralStatus(copy, B.listReferrals(copy)[0].id, { status: 'done' }); } catch (e) { err = e.message; }
+    check('a referral only takes Intake, For Review or Reviewed', /Intake, For Review or Reviewed/.test(err));
+    await go('#home');
+    await pg.selectOption('#choose-colab', 'IPV');
+    await pg.waitForSelector('.ipv-list .tr.is-row');
+    let db = await source();
+    const all = db.ipv.referrals;
+    const by = (s) => all.filter((r) => r.status === s);
+    check('choosing IPV opens its review, on Intake', /#ipv(\/intake)?$/.test(pg.url()) && (await text('h1')) === 'IPV High Risk Team Review' && (await text('.view-seg[aria-current="page"]')).startsWith('Intake'));
+    check('the sidebar switches to Referrals and Reports', (await pg.locator('.sidebar .side-nav > .side-link').allInnerTexts()).map((t) => t.trim()).join('|') === 'Referrals|Reports' && (await text('.side-sublink[aria-current="page"]')) === 'Intake' && (await count('.sidebar a[href="#my-action-items"]')) === 0);
+    check('one referral per IPV client, in three statuses', all.length > 10 && by('intake').length && by('review').length && by('reviewed').length && all.every((r) => db.clients.find((c) => c.id === r.clientId).colabs.includes('IPV')));
+    check('Intake lists its referrals with a count', (await count('.ipv-list .tr.is-row')) === by('intake').length && (await text('#ipv-h')).includes('(' + by('intake').length + ' clients)'));
+    check('Intake shows filing and effective dates', (await text('.ipv-list .tr.is-head')).includes('Filing Date') && (await text('.ipv-list .tr.is-head')).includes('Effective Date'));
+    await pg.locator('.side-sublink', { hasText: 'For Review' }).click();
+    await pg.waitForTimeout(150);
+    check('For Review from the sidebar, with its own address', pg.url().endsWith('#ipv/review') && (await count('.ipv-list .tr.is-row')) === by('review').length && (await text('.view-seg[aria-current="page"]')).startsWith('For Review'));
+    await pg.locator('.view-bar').getByRole('link', { name: /All Referrals/ }).click();
+    await pg.waitForTimeout(150);
+    check('All Referrals shows last activity instead', (await count('.ipv-list .tr.is-row')) === Math.min(25, all.length) && (await text('.ipv-list .tr.is-head')).includes('Last Activity') && (await pg.title()) === 'IPV · All Referrals · CoLab');
+    await pg.locator('.ipv-chip', { hasText: 'Pittsburgh Police' }).click();
+    const pgh = all.filter((r) => r.arrest && /Pittsburgh Police/.test(r.arrest.agency)).length;
+    check('filter by arresting agency', (await count('.ipv-list .tr.is-row')) === pgh);
+    await pg.locator('.ipv-chip', { hasText: /^All$/ }).click();
+    const target = all.find((r) => r.status === 'intake');
+    await pg.fill('#ipv-search', target.sid);
+    check('search by SID', (await count('.ipv-list .tr.is-row')) === 1);
+    await pg.fill('#ipv-search', '');
+
+    // Moving a referral, and undoing it
+    await go('#ipv/intake');
+    await pg.waitForSelector('.ipv-list .tr.is-row');
+    const first = pg.locator('.ipv-list .tr.is-row').first();
+    const firstName = await first.locator('.link-btn').innerText();
+    await first.locator('select').selectOption('review');
+    await pg.waitForSelector('.toast');
+    db = await source();
+    const moved = db.ipv.referrals.filter((r) => r.status === 'review').length;
+    check('the status menu moves a referral', moved === by('review').length + 1 && (await text('.toast')).includes('moved to For Review') && (await count('.ipv-list .tr.is-row')) === by('intake').length - 1);
+    check('and logs it', db.ipv.referrals.some((r) => r.status === 'review' && r.activity.some((a) => a.text === 'Moved to For Review' && a.by === db.userId)));
+    await pg.locator('.toast').getByRole('button', { name: 'Undo' }).click();
+    await pg.waitForTimeout(400);
+    check('Undo puts it back', (await source()).ipv.referrals.filter((r) => r.status === 'intake').length === by('intake').length && (await pg.locator('.ipv-list .tr.is-row .link-btn').allInnerTexts()).includes(firstName));
+    // Several at once
+    await pg.locator('.ipv-list .tr.is-row input[type="checkbox"]').nth(0).check();
+    await pg.locator('.ipv-list .tr.is-row input[type="checkbox"]').nth(1).check();
+    check('selecting shows what you can do with them', (await text('.ipv-bulk')).includes('2 clients selected'));
+    const [dl] = await Promise.all([pg.waitForEvent('download'), pg.locator('.ipv-download').click()]);
+    const csv = await (await import('node:fs')).promises.readFile(await dl.path(), 'utf8');
+    check('download gives the selected referrals', dl.suggestedFilename() === 'ipv-referrals-intake.csv' && csv.startsWith('Last name,First name,Date of birth,MCI ID,OTN,SID') && csv.trim().split('\n').length === 3);
+    await pg.locator('.ipv-bulk').getByRole('button', { name: 'For Review' }).click();
+    await pg.waitForTimeout(400);
+    db = await source();
+    check('move the selected to For Review together', db.ipv.referrals.filter((r) => r.status === 'review').length === by('review').length + 2 && (await count('.ipv-bulk')) === 0);
+
+    // The referral profile
+    const r = db.ipv.referrals.find((x) => x.status === 'reviewed' && x.arrest) || db.ipv.referrals.find((x) => x.arrest);
+    const c = db.clients.find((x) => x.id === r.clientId);
+    await go('#ipv/reviewed');
+    await pg.waitForSelector('.ipv-list .tr.is-row');
+    await pg.getByRole('link', { name: c.last + ', ' + c.first }).click();
+    await pg.waitForSelector('#ipv-overview');
+    check('a name opens the referral', pg.url().endsWith('#ipv/referral/' + r.id) && (await text('h1')) === c.first + ' ' + c.last && (await pg.title()) === c.first + ' ' + c.last + ' · IPV · CoLab');
+    check('the sidebar lists the profile’s sections', (await pg.locator('.sidebar .side-sublink').allInnerTexts()).join('|') === 'Referral Overview|Action Items|Case Notes|Case Information' && (await text('.sidebar .side-link.is-open')) === 'Referral Profile');
+    check('IDs and personal information', (await text('.ipv-head .ids')).includes(c.mci) && (await text('.ipv-head .ids')).includes(r.sid) && (await text('#ipv-overview')).includes(c.dob));
+    await pg.locator('#ipv-overview').getByRole('button', { name: 'Client Activity' }).click();
+    check('client activity lists what happened', (await text('.ipv-activity')).includes('Reviewed at the IPV case conference') || (await text('.ipv-activity')).includes('Added from arrest data'));
+    await pg.locator('#ipv-overview').getByRole('button', { name: 'Personal Information' }).click();
+    check('case information shows the arrest', (await text('#ipv-case')).includes(r.arrest.otn) && (await text('#ipv-case')).includes(r.arrest.agency));
+    await pg.locator('.sidebar .side-sublink', { hasText: 'Case Notes' }).click();
+    await pg.waitForTimeout(400);
+    check('a section link goes to that section', (await pg.evaluate(() => document.activeElement.id)) === 'ipv-notes-h');
+    await pg.locator('#ipv-notes').getByRole('button', { name: 'Add New Case Note' }).click();
+    await pg.fill('#note-draft', 'Discussed at the IPV meeting; probation to follow up.');
+    await pg.locator('#ipv-notes').getByRole('button', { name: 'Save' }).click();
+    await pg.waitForTimeout(400);
+    check('case notes added here are filed under IPV', (await source()).notes.some((n) => n.clientId === c.id && n.tag === 'IPV' && n.text.startsWith('Discussed at the IPV meeting')) && (await text('#ipv-notes')).includes('Discussed at the IPV meeting'));
+    await pg.selectOption('#ipv-status', 'review');
+    await pg.waitForTimeout(400);
+    check('the status can change from the profile', (await source()).ipv.referrals.find((x) => x.id === r.id).status === 'review');
+    await pg.locator('.crumbs').getByRole('link', { name: 'Referrals' }).click();
+    check('Referrals goes back to the last view', pg.url().endsWith('#ipv/reviewed'));
+    await go('#home');
   });
 
   const openHistory = async () => { await go(`#asc/contact/${kid}/wrap-up`); await btn('History', true).click(); };
@@ -1403,9 +1492,11 @@ async function run(mode) {
       'ASC wrap up': async () => { await pg.getByRole('link', { name: /Wrap Up/ }).click(); await btn('Close Contact', true).click(); },
       'ASC urgent dialog': async () => { await btn('Urgent Routing', true).click(); await pg.waitForSelector('.asc-dest'); },
       'ASC history dialog': async () => { await pg.keyboard.press('Escape'); await openHistory(); await pg.waitForSelector('.modal'); },
-      '#client/c65/asc': async () => { await pg.keyboard.press('Escape'); await go('#client/c3/asc'); await pg.waitForSelector('.asc-history'); }
+      '#client/c65/asc': async () => { await pg.keyboard.press('Escape'); await go('#client/c3/asc'); await pg.waitForSelector('.asc-history'); },
+      'IPV referral': async () => { await go('#ipv/all'); await pg.waitForSelector('.ipv-list .tr.is-row'); await pg.locator('.ipv-list .tr.is-row .link-btn').first().click(); await pg.waitForSelector('#ipv-overview'); },
+      'IPV referral activity': async () => { await pg.locator('#ipv-overview').getByRole('button', { name: 'Client Activity' }).click(); }
     };
-    for (const h of ['#home', '#my-action-items', '#my-case-notes', '#starred-clients', '#client/c1/overview', '#client/c1/services', '#client/c1/program-info', '#client/c1/providers', '#client/c1/case-notes', '#client/c1/service/s1', '#client/c1/provider/Mercy', '#asc', ...Object.keys(states)]) {
+    for (const h of ['#home', '#my-action-items', '#my-case-notes', '#starred-clients', '#client/c1/overview', '#client/c1/services', '#client/c1/program-info', '#client/c1/providers', '#client/c1/case-notes', '#client/c1/service/s1', '#client/c1/provider/Mercy', '#asc', '#ipv/intake', '#ipv/review', '#ipv/all', ...Object.keys(states)]) {
       if (process.env.DEBUG) console.log('  a11y state', h);
       if (states[h]) await states[h](); else await go(h);
       await pg.waitForTimeout(150);

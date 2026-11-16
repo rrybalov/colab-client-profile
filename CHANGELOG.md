@@ -2,6 +2,30 @@
 
 Each version is kept on an `archive/` branch. See "Versions and rolling back" in the README.
 
+## v4.4: IPV High Risk Team Review, and CoLab tool sidebars
+
+**IPV High Risk Team Review.** Choosing IPV CoLab in the menu opens IPV's own tool, built from the live IPV design:
+- A status bar across the top: All Referrals, Intake (the default), For Review, Reviewed. Each view has its own address (`#ipv/intake`, `#ipv/review`, …), with a count.
+- One grid per view: client and date of birth, OTN and SID, arrest date and agency, filing and effective dates (Intake and For Review) or effective date and last activity (All and Reviewed), risk type and status.
+- Search by name, OTN, SID or MCI ID. Filter by Pittsburgh Police or other police departments. Sort by name or date.
+- Each row's status is a menu: move a referral between Intake, For Review and Reviewed. Undo is offered.
+- Select rows to move them together or download them. The download icon exports the selected rows, or the whole view, as CSV.
+- At laptop widths the middle columns scroll while the client and status stay in view.
+
+**Referral profile** (`#ipv/referral/<id>`): breadcrumb back to the view you came from, the status menu, MCI ID, SID and DOC #, then four collapsible sections:
+- Referral Overview: Personal Information, or Client Activity (every status change, with who and when).
+- Action Items and Case Notes, filed under IPV.
+- Case Information: the arrest behind the referral and their other cases.
+
+**Sidebar.** Choosing a CoLab switches the sidebar to that CoLab's own pages, as IPV does in the live tool. The CoLab menu moved to the top.
+- IPV: Referrals (with its four views) and Reports. On a referral, Referral Profile lists the sections and follows the scroll.
+- ASC: Contacts (In Progress, Mine, Closed, All Contacts), Close-Outs with a waiting count, and for supervisors Team and State Reporting. These replace the tabs on the ASC pages.
+- All CoLabs and the other CoLabs keep CoLab Home, Action Items, Case Notes and Starred Clients.
+
+**ASC Contacts.** The views are a status bar like IPV's, each with an address (`#asc/in-progress`, `#asc/all`, …). New In-Person Contact and New Phone Contact moved into the page header.
+
+**Sample data.** One IPV referral for each IPV CoLab client, from their most recent domestic violence arrest when they have one; the rest were entered by DHS. All fictional.
+
 ## v4.3: Supervisor tools and close-outs
 
 **ASC pages.** The ASC home has tabs: Contacts, Close-Outs, and, for supervisors, Team and State Reporting (`#asc/closeouts`, `#asc/team`, `#asc/reporting`). Close-Outs shows how many requests are waiting.
