@@ -3,7 +3,7 @@
 import * as api from '../backend.js';
 import { buildSeed, enrich, SEED_VERSION } from '../seed.js';
 import { seedAsc } from '../asc-seed.js';
-import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange, normalizeTeam, normalizeReassign, normalizeCloseout, normalizeDischarge, normalizeReport, normalizeReferral } from '../schema.js';
+import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange, normalizeTeam, normalizeReassign, normalizeCloseout, normalizeDischarge, normalizeReport, normalizeReferral, normalizeDirectory } from '../schema.js';
 
 const KEY = 'colab.db';
 
@@ -98,6 +98,8 @@ export function createLocalSource() {
     decideCloseout: (id, body) => run((d) => api.decideCloseout(d, id, body), true).then(normalizeDischarge),
     dischargeClient: (clientId, body) => run((d) => api.dischargeClient(d, clientId, body), true).then(normalizeDischarge),
     getStateReport: (period) => run((d) => api.stateReport(d, period)).then(normalizeReport),
+    // Published as a static file next to the app, so it can be updated without a code change.
+    getProviderDirectory: () => fetch('data/bh-providers.json').then((r) => { if (!r.ok) throw new Error('The provider directory couldn’t be loaded.'); return r.json(); }).then(normalizeDirectory),
     listReferrals: () => run((d) => api.listReferrals(d), true).then((l) => l.map(normalizeReferral)),
     getReferral: (id) => run((d) => api.getReferral(d, id)).then(normalizeReferral),
     setReferralStatus: (id, status) => run((d) => api.setReferralStatus(d, id, { status }), true).then(normalizeReferral),

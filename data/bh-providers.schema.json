@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bh-providers.schema.json",
+  "title": "Allegheny County Behavioral Health Provider Directory",
+  "type": "object",
+  "required": ["meta", "vocabularies", "sources", "hotlines", "changes", "providers"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "meta": {
+      "type": "object",
+      "required": ["title", "version", "compiledOn", "region", "scope", "warning", "counts"],
+      "properties": {
+        "title": { "type": "string" }, "version": { "type": "string" }, "compiledOn": { "type": "string", "format": "date" },
+        "region": { "type": "string" }, "scope": { "type": "string" }, "warning": { "type": "string" },
+        "howToRead": { "type": "object", "additionalProperties": { "type": "string" } },
+        "gaps": { "type": "array", "items": { "type": "string" } },
+        "counts": { "type": "object", "additionalProperties": { "type": "integer" } }
+      }
+    },
+    "vocabularies": {
+      "type": "object",
+      "required": ["services", "populations", "funding", "providerTypes"],
+      "properties": {
+        "services": { "type": "array", "items": { "type": "object", "required": ["id", "category", "label", "description"],
+          "properties": { "id": { "$ref": "#/$defs/slug" }, "category": { "enum": ["crisis", "mental-health", "substance-use", "recovery-support", "housing", "family-support", "specialty", "information"] },
+            "label": { "type": "string" }, "description": { "type": "string" } }, "additionalProperties": false } },
+        "populations": { "type": "array", "items": { "$ref": "#/$defs/idLabel" } },
+        "funding": { "type": "array", "items": { "$ref": "#/$defs/idLabel" } },
+        "providerTypes": { "type": "array", "items": { "$ref": "#/$defs/slug" } }
+      }
+    },
+    "sources": { "type": "array", "items": { "type": "object", "required": ["id", "title", "publisher", "asOf", "url"],
+      "properties": { "id": { "$ref": "#/$defs/slug" }, "title": { "type": "string" }, "publisher": { "type": "string" }, "asOf": { "type": "string" },
+        "url": { "type": "string", "format": "uri" }, "mirror": { "type": "string", "format": "uri" } }, "additionalProperties": false } },
+    "hotlines": { "type": "array", "items": { "type": "object", "required": ["id", "name", "hours", "serves", "source"],
+      "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "phone": { "type": "string" }, "text": { "type": "string" }, "chat": { "type": "string" },
+        "tty": { "type": "string" }, "hours": { "type": "string" }, "serves": { "type": "string" }, "provider": { "$ref": "#/$defs/slug" }, "source": { "$ref": "#/$defs/slug" } },
+      "anyOf": [{ "required": ["phone"] }, { "required": ["text"] }], "additionalProperties": false } },
+    "changes": { "type": "array", "items": { "type": "object", "required": ["date", "text", "source"],
+      "properties": { "date": { "type": "string" }, "provider": { "type": ["string", "null"] }, "subject": { "type": "string" }, "text": { "type": "string" }, "source": { "$ref": "#/$defs/slug" } },
+      "additionalProperties": false } },
+    "providers": { "type": "array", "items": { "$ref": "#/$defs/provider" } }
+  },
+  "$defs": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "idLabel": { "type": "object", "required": ["id", "label"], "properties": { "id": { "$ref": "#/$defs/slug" }, "label": { "type": "string" } }, "additionalProperties": false },
+    "ageGroup": { "enum": ["children", "adolescents", "transition-age-youth", "adults", "older-adults"] },
+    "nullableString": { "type": ["string", "null"] },
+    "age": { "type": ["integer", "null"], "minimum": 0, "maximum": 120 },
+    "address": { "type": ["object", "null"], "required": ["line1", "city", "state", "zip"],
+      "properties": { "line1": { "type": "string" }, "line2": { "$ref": "#/$defs/nullableString" }, "city": { "type": "string" },
+        "state": { "const": "PA" }, "zip": { "type": "string", "pattern": "^\\d{5}$" } }, "additionalProperties": false },
+    "facility": { "type": "object", "required": ["id", "name", "address", "county", "inAlleghenyCounty", "status", "flags"],
+      "properties": { "id": { "$ref": "#/$defs/slug" }, "name": { "type": "string" }, "address": { "$ref": "#/$defs/address" }, "county": { "type": "string" },
+        "inAlleghenyCounty": { "type": "boolean" }, "phone": { "$ref": "#/$defs/nullableString" }, "status": { "enum": ["active", "verify", "closed"] },
+        "notes": { "$ref": "#/$defs/nullableString" }, "flags": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false },
+    "service": { "type": "object", "required": ["service", "facilities", "ageGroups", "populations", "limitations"],
+      "properties": { "service": { "$ref": "#/$defs/slug" }, "facilities": { "type": "array", "items": { "$ref": "#/$defs/slug" } },
+        "ageGroups": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/ageGroup" } }, "populations": { "type": "array", "items": { "$ref": "#/$defs/slug" } },
+        "minAge": { "$ref": "#/$defs/age" }, "maxAge": { "$ref": "#/$defs/age" }, "phone": { "$ref": "#/$defs/nullableString" },
+        "notes": { "$ref": "#/$defs/nullableString" }, "limitations": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false },
+    "provider": { "type": "object",
+      "required": ["id", "name", "type", "serves", "facilities", "services", "sources", "verification"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" }, "name": { "type": "string" }, "aka": { "type": "array", "items": { "type": "string" } },
+        "operator": { "$ref": "#/$defs/nullableString" }, "type": { "$ref": "#/$defs/slug" }, "website": { "type": ["string", "null"], "format": "uri" },
+        "phones": { "type": "object", "additionalProperties": { "type": "string" } },
+        "serves": { "type": "object", "required": ["ageGroups", "populations"],
+          "properties": { "ageGroups": { "type": "array", "items": { "$ref": "#/$defs/ageGroup" } }, "populations": { "type": "array", "items": { "$ref": "#/$defs/slug" } } },
+          "additionalProperties": false },
+        "limitations": { "type": "array", "items": { "type": "string" } }, "referral": { "$ref": "#/$defs/nullableString" },
+        "funding": { "type": "array", "items": { "$ref": "#/$defs/slug" } },
+        "facilities": { "type": "array", "items": { "$ref": "#/$defs/facility" } },
+        "services": { "type": "array", "items": { "$ref": "#/$defs/service" } },
+        "notes": { "$ref": "#/$defs/nullableString" }, "flags": { "type": "array", "items": { "type": "string" } },
+        "sources": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/slug" } },
+        "verification": { "type": "object", "required": ["level", "checkedOn"],
+          "properties": { "level": { "enum": ["county-directory", "provider-site", "multiple"] }, "checkedOn": { "type": "string", "format": "date" } }, "additionalProperties": false }
+      }, "additionalProperties": false }
+  }
+}

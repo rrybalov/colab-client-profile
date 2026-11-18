@@ -63,7 +63,8 @@
  *
  * ASC (Administrative Service Coordination). A contact is one call or in-person visit. It starts anonymous;
  * `clientId` is set once the person is identified and enrolled. Times are ISO 8601; due dates yyyy-mm-dd.
- * @typedef {{ id: string, what: string, need: string, type: string, how: string, min: string, place: string, notes: string }} Interaction
+ * @typedef {{ providerId: string, facilityId: string, name: string, site: string, phone: string, address: string }} Referral
+ * @typedef {{ id: string, what: string, need: string, type: string, how: string, min: string, place: string, notes: string, referral: Referral|null }} Interaction
  * @typedef {{ id: string, name: string, urg: 'Routine'|'Urgent'|'Crisis', outcome: string, outcomeNote: string }} Need
  * @typedef {{
  *   id: string, ref: string, channel: 'phone'|'person', logId: string, site: string, startedAt: string, endedAt: string|null,
@@ -203,7 +204,7 @@ export function normalizeContact(k) {
     anon: { name: str(a.name), zip: str(a.zip), county: str(a.county) || 'Allegheny', language: str(a.language) || 'English' },
     intake, screening: strMap(obj(k.screening), ['mh', 'ph', 'house', 'food', 'su']),
     needs: arr(k.needs).map((n, i) => ({ id: str(n.id) || 'n' + i, name: str(n.name), urg: str(n.urg) || 'Routine', outcome: str(n.outcome), outcomeNote: str(n.outcomeNote) })),
-    interactions: arr(k.interactions).map((x, i) => ({ id: str(x.id) || 'i' + i, what: str(x.what), need: str(x.need), type: str(x.type), how: str(x.how), min: str(x.min), place: str(x.place), notes: str(x.notes) })),
+    interactions: arr(k.interactions).map((x, i) => ({ id: str(x.id) || 'i' + i, what: str(x.what), need: str(x.need), type: str(x.type), how: str(x.how), min: str(x.min), place: str(x.place), notes: str(x.notes), referral: normalizeIxReferral(x.referral) })),
     followUp: { ok: f.ok === 'Yes' || f.ok === 'No' ? f.ok : null, how: str(f.how) || 'Phone call', time: str(f.time) },
     onsite: { idCheck: strOrNull(o.idCheck), consentSigned: str(o.consentSigned), docs: arr(o.docs).map(str) },
     notes: arr(k.notes).map((n) => ({ id: str(n.id), text: str(n.text), restricted: bool(n.restricted), date: str(n.date), author: str(n.author), edited: bool(n.edited) })),
@@ -227,7 +228,7 @@ export function normalizeHistory(h) {
     openItems: arr(h.openItems).map((o) => ({ kind: str(o.kind), text: str(o.text), meta: str(o.meta), need: str(o.need), urg: str(o.urg), contactId: str(o.contactId), ref: str(o.ref), actionId: str(o.actionId), clientId: str(o.clientId) })),
     contacts: arr(h.contacts).map((x) => ({
       ...normalizeContactSummary(x), staffName: str(x.staffName), possible: bool(x.possible), minutes: num(x.minutes),
-      interactions: arr(x.interactions).map((i) => ({ id: str(i.id), what: str(i.what), type: str(i.type), how: str(i.how), min: str(i.min), place: str(i.place) })),
+      interactions: arr(x.interactions).map((i) => ({ id: str(i.id), what: str(i.what), type: str(i.type), how: str(i.how), min: str(i.min), place: str(i.place), referral: normalizeIxReferral(i.referral) })),
       notes: arr(x.notes).map(str), screening: arr(x.screening).map(str),
       record: x.record ? normalizeContact(x.record) : null
     }))
@@ -276,3 +277,16 @@ export const normalizeReferral = (r) => {
     activity: arr(o.activity).map((x) => ({ at: str(x.at), by: str(x.by), byName: str(x.byName), text: str(x.text) }))
   };
 };
+
+// The provider an interaction referred someone to (see src/data/provider-search.js).
+export function normalizeIxReferral(r) {
+  if (!r || typeof r !== 'object' || !r.name) return null;
+  return { providerId: str(r.providerId), facilityId: str(r.facilityId), name: str(r.name), site: str(r.site), phone: str(r.phone), address: str(r.address) };
+}
+
+// The behavioral health provider directory is used as published (data/bh-providers.json); this only checks its shape.
+export function normalizeDirectory(d) {
+  const o = obj(d);
+  if (!Array.isArray(o.providers) || !o.vocabularies || !Array.isArray(o.vocabularies.services)) throw new Error('The provider directory didn’t load correctly.');
+  return o;
+}

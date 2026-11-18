@@ -118,6 +118,12 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 
 **StateReport** `{ period: "YYYY-MM", rows, totals, notSent, submission }`. `rows` are `[{ id, contactId, ref, clientId, clientName, mci, code, date, units, place, coordinator, problems[] }]`, one per interaction on a closed contact with a verified client started in that month. `totals` is `{ contacts, clients, rows, units, problems }`; `notSent` is `{ open, anonymous, unverified }`; `submission` is `{ by, byName, at, rows, units, contacts, version, changedSince[] } | null`, where `changedSince` lists Event IDs corrected after it was marked submitted.
 
+**Interaction referral.** Each interaction has `referral: { providerId, facilityId, name, site, phone, address } | null`. It's a snapshot taken when the coordinator picks a site from the provider directory, so the record still reads right if the directory changes later. `providerId` and `facilityId` are empty when a name was typed in for a provider that isn't in the directory. Changing it adds a "Referred to …" line to the contact log.
+
+| Method and path | Returns | Notes |
+|---|---|---|
+| `GET /asc/provider-directory` | The behavioral health provider directory | The published `data/bh-providers.json` (schema in `data/bh-providers.schema.json`), as is. The app searches it in the browser. |
+
 ### IPV (High Risk Team Review)
 
 **Referral** `{ id, clientId, status: intake/review/reviewed, sid, doc, source: arrest/manual, arrest: { otn, date, agency, charge, filed, effective } | null, risk[], activity: [{ at, by, byName, text }] }`, plus read-only `client` (summary), `mci`, `agencyGroup` (`pittsburgh` or `other`, from the arresting agency) and `lastActivity` (the newest activity time). `activity` is newest first and can't be set by a client.
@@ -187,5 +193,6 @@ A **Contact** is one phone call or in-person visit. It starts anonymous. `client
 - Paging for very long note or action-item lists. Today each client's list comes back whole.
 - Who may see restricted notes. The server should filter them; the app shows whatever it receives.
 - Choosing a CoLab tag for a new note or action item. The design has no control for it yet, so new ones are `PERSONAL`, except during an ASC contact, where they are `ASC`.
+- Provider directory: who maintains it, how often it's re-verified, and whether HealthChoices network status and openings come from Community Care.
 - IPV: where referrals come from (the arrest data feed), who may move them, the case conference calendar, and what the Reports link opens.
 - ASC: the state's file format for the monthly report (the CSV columns are a placeholder) and how it's sent, real service codes and place-of-service codes (shown as `[code TBD]`), the state's unit rounding rule, county holidays in the 7-day follow-up, consent forms and document scanning (the prototype records that they happened), and the referral step that follows intake.

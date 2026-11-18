@@ -2,6 +2,25 @@
 
 Each version is kept on an `archive/` branch. See "Versions and rolling back" in the README.
 
+## v4.5: Find a Provider
+
+**Find a Provider.** The Interactions step can now search the behavioral health provider directory (`data/bh-providers.json`), so coordinators refer people to a specific program instead of searching the web.
+- **Two ways in:** the Find a Provider button above "Add an interaction", or the button on any interaction card.
+- **Starting filters:** the search starts from the need and the age given at intake. For example, "Substance use treatment" for an adult starts on drug and alcohol assessments for adults.
+- **Filters:** type of care (grouped: crisis, mental health, drug and alcohol, recovery support, family support, housing), age, who the program serves (pregnant people, LGBTQ+, veterans and others), town or ZIP, name or keyword, and "Only sites in Allegheny County".
+- **Results:** each provider shows its matching sites with address, phone (with a copy button), the matching services and their ages.
+  - Limits such as "Veterans only" or "Referral only" are listed.
+  - Each provider is marked as checked with the provider or taken from the county's February 2025 booklet.
+  - Services with no confirmed site are grouped under "Site not confirmed".
+- **Help on screen:** crisis lines are always at the top. If the person has Medical Assistance, a note says to check Community Care's network. Needs the directory doesn't cover (food, rides, coverage) say where to go instead.
+- **Refer Here:** from the top button, this starts a new interaction with the referral filled in. From a card, it sets that interaction's referral. Someone not in the directory can be named instead.
+
+**Referred to.** Every interaction has an optional "Referred to" field.
+- It holds a snapshot from the directory (provider, site, phone and address), or any name typed in.
+- It's in the contact log ("Referred to …"), the automatic summary case note, and the History table.
+
+**Data.** Interactions gain `referral` (see docs/API.md). The directory is a static file next to the app; the API serves it at `GET /asc/provider-directory`.
+
 ## v4.4: IPV High Risk Team Review, and CoLab tool sidebars
 
 **IPV High Risk Team Review.** Choosing IPV CoLab in the menu opens IPV's own tool, built from the live IPV design:

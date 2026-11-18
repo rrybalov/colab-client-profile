@@ -1413,6 +1413,70 @@ async function run(mode) {
     await go('#home');
   });
 
+  await part('ASC: Find a Provider and referrals', async () => {
+    const PS = await import('../src/data/provider-search.js');
+    const ASCM = await import('../src/data/asc.js');
+    const dir = JSON.parse((await import('node:fs')).readFileSync(new URL('../data/bh-providers.json', import.meta.url), 'utf8'));
+    const ids = (rs) => rs.map((r) => r.provider.id);
+    const meth = PS.searchProviders(dir, { service: 'mat-methadone' });
+    check('search: methadone finds the opioid treatment programs', ids(meth).includes('tadiso') && ids(meth).includes('upmc-wbh') && meth.every((r) => r.sites.every((s) => s.services.every((x) => x.service === 'mat-methadone'))));
+    check('search: a need starts the search', PS.filtersFor('Mental health services for a child', 'Child, 0–17').service === 'mh-outpatient' && PS.filtersFor('Substance use treatment', 'Adult, 18–59').ages === 'adults');
+    const pregnant = PS.searchProviders(dir, { category: 'substance-use', population: 'mothers-with-children' });
+    check('search: who they serve narrows it', ids(pregnant)[0] === 'sojourner-house');
+    const inCounty = PS.searchProviders(dir, { service: 'sud-residential' });
+    const anywhere = PS.searchProviders(dir, { service: 'sud-residential', inCounty: false });
+    check('search: out-of-county programs only when asked', anywhere.length > inCounty.length && inCounty.every((r) => r.sites.every((s) => s.facility.inAlleghenyCounty)));
+    check('search: by town', PS.searchProviders(dir, { area: 'McKeesport' }).every((r) => r.sites.every((s) => /McKeesport/.test(s.facility.address.city + s.facility.name))));
+    check('search: sites not confirmed are kept, marked', PS.searchProviders(dir, { q: 'Wesley', service: 'family-based-mh' })[0].unsited.length === 1);
+    const ref = PS.referralFrom(dir.providers.find((p) => p.id === 'tadiso'), dir.providers.find((p) => p.id === 'tadiso').facilities[0]);
+    const note = ASCM.summaryNote({ channel: 'phone', startedAt: new Date().toISOString(), intake: {}, screening: {}, needs: [], interactions: [{ what: 'Methadone', type: 'Information and resources [code TBD]', how: 'Number given', min: '5', notes: '', referral: ref }], followUp: {}, onsite: { docs: [] }, clientId: '', identity: '', ref: 'EV-1' }, 'Logan Bialik');
+    check('the summary note says where they were referred', note.includes('Referred to Tadiso, Inc., Tadiso (412-322-8415).'));
+
+    await go('#client/c3/asc');
+    await btn('New Phone Contact', true).click();
+    await pg.waitForSelector('.asc-safety');
+    const id = contactId();
+    await go(`#asc/contact/${id}/interactions`);
+    await pg.waitForSelector('#asc-find-provider');
+    await pg.click('#asc-find-provider');
+    await pg.waitForSelector('.asc-pr-count');
+    check('Find a Provider opens the directory, with crisis lines on top', (await text('.modal h2, .modal h1')).includes('Find a Provider') && (await text('.asc-pr-crisis')).includes('1-888-796-8226'));
+    await pg.selectOption('#pr-service', 'mat-methadone');
+    check('filtering by type of care', (await pg.locator('.asc-pr-name').allInnerTexts()).includes('Tadiso, Inc.'));
+    await pg.fill('#pr-area', '15221');
+    check('and by ZIP', (await count('.asc-pr')) === 1 && (await text('.asc-pr')).includes('Narcotic Addiction Treatment Program'));
+    await pg.locator('.asc-pr-site').getByRole('button', { name: /^Refer to/ }).first().click();
+    await pg.waitForSelector('.modal', { state: 'detached' });
+    await pg.waitForSelector('.asc-ix');
+    await pg.waitForTimeout(400);
+    let k = await contactOf(id);
+    check('Refer Here starts an interaction with the referral', k.interactions.length === 1 && k.interactions[0].referral.providerId === 'upmc-wbh' && k.interactions[0].referral.facilityId === 'wph-natp' && k.interactions[0].what.startsWith('Referral: '));
+    check('the referral is logged', k.log.some((l) => /^Referred to UPMC Western Behavioral Health/.test(l.text)));
+    const ix = k.interactions[0].id;
+    check('the card shows where they were referred, from the directory', (await pg.inputValue(`#ix-${ix}-ref`)).includes('Narcotic Addiction Treatment Program') && (await text(`#ix-${ix}-refd`)).includes('412-864-5300'));
+    await pg.click(`#ix-${ix}-find`);
+    await pg.waitForSelector('.asc-pr-count');
+    await pg.selectOption('#pr-service', '');
+    await pg.fill('#pr-q', 'Persad');
+    await pg.locator('.asc-pr-site').getByRole('button', { name: /^Refer to/ }).first().click();
+    await pg.waitForSelector('.modal', { state: 'detached' });
+    await pg.waitForTimeout(400);
+    k = await contactOf(id);
+    check('from a card, the pick replaces that interaction’s referral', k.interactions.length === 1 && k.interactions[0].referral.providerId === 'persad' && (await pg.evaluate(() => document.activeElement.id)) === `ix-${ix}-find`);
+    await pg.fill(`#ix-${ix}-ref`, 'Dr. Lee, private practice');
+    await pg.waitForTimeout(900);
+    k = await contactOf(id);
+    check('a provider not in the directory can be typed in', k.interactions[0].referral.name === 'Dr. Lee, private practice' && !k.interactions[0].referral.providerId && (await count(`#ix-${ix}-refd`)) === 0);
+    await pg.click('#asc-find-provider');
+    await pg.waitForSelector('.asc-pr-count');
+    await pg.fill('#pr-other', 'Neighborhood counseling center');
+    await btn('Use This Name', true).click();
+    await pg.waitForSelector('.modal', { state: 'detached' });
+    await pg.waitForTimeout(400);
+    k = await contactOf(id);
+    check('or named from the search when it isn’t listed', k.interactions.length === 2 && k.interactions[1].referral.name === 'Neighborhood counseling center');
+  });
+
   const openHistory = async () => { await go(`#asc/contact/${kid}/wrap-up`); await btn('History', true).click(); };
 
   await part('ASC: QA pass 2 (v4.0.1)', async () => {
@@ -1488,7 +1552,8 @@ async function run(mode) {
       'ASC identify': async () => { await pg.getByRole('link', { name: /Identify/ }).click(); await pg.fill('#i-last', 'Nobodyhere'); await btn('Search MCI', true).click(); await pg.waitForSelector('.asc-nomatch'); },
       'ASC new client': async () => { await btn('Register New Client', true).click(); await btn('Register and Enroll', true).click(); },
       'ASC anonymous': async () => { await btn('Back to Search', true).click(); await btn('Stay Anonymous', true).click(); },
-      'ASC interactions': async () => { await pg.getByRole('link', { name: /Interactions/ }).click(); await pg.fill('#asc-custom-ix', 'MATP'); await btn('Add', true).click(); await pg.locator('.asc-ix').first().getByRole('button', { name: 'Add Reminder' }).click(); },
+      'ASC provider search': async () => { await pg.getByRole('link', { name: /Interactions/ }).click(); await pg.locator('#asc-find-provider').click(); await pg.waitForSelector('.asc-pr-list'); },
+      'ASC interactions': async () => { await pg.keyboard.press('Escape'); await pg.waitForTimeout(100); await pg.getByRole('link', { name: /Interactions/ }).click(); await pg.fill('#asc-custom-ix', 'MATP'); await btn('Add', true).click(); await pg.locator('.asc-ix').first().getByRole('button', { name: 'Add Reminder' }).click(); },
       'ASC wrap up': async () => { await pg.getByRole('link', { name: /Wrap Up/ }).click(); await btn('Close Contact', true).click(); },
       'ASC urgent dialog': async () => { await btn('Urgent Routing', true).click(); await pg.waitForSelector('.asc-dest'); },
       'ASC history dialog': async () => { await pg.keyboard.press('Escape'); await openHistory(); await pg.waitForSelector('.modal'); },

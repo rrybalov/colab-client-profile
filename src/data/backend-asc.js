@@ -156,7 +156,10 @@ const cleanSection = (v) => {
 const cleanNeed = (n) => ({ id: text(n.id, 40), name: text(n.name, 120), urg: text(n.urg, 40), outcome: text(n.outcome, 120), outcomeNote: text(n.outcomeNote, 2000) });
 // Minutes stay as typed, but no single interaction is recorded as longer than 10 hours.
 const cleanMin = (v) => { const t = text(v, 6).trim(); const m = Number(t); return t && m > 600 ? '600' : t; };
-const cleanIx = (x) => ({ id: text(x.id, 40), what: text(x.what, 300), need: text(x.need, 40), type: text(x.type, 120), how: text(x.how, 60), min: cleanMin(x.min), place: text(x.place, 120), notes: text(x.notes, 4000) });
+// Who they were referred to: a snapshot from the provider directory, or a name typed in for someone not in it.
+const cleanReferral = (r) => (!r || typeof r !== 'object' || !text(r.name, 200) ? null
+  : { providerId: text(r.providerId, 60), facilityId: text(r.facilityId, 80), name: text(r.name, 200), site: text(r.site, 200), phone: text(r.phone, 40), address: text(r.address, 300) });
+const cleanIx = (x) => ({ id: text(x.id, 40), what: text(x.what, 300), need: text(x.need, 40), type: text(x.type, 120), how: text(x.how, 60), min: cleanMin(x.min), place: text(x.place, 120), notes: text(x.notes, 4000), referral: cleanReferral(x.referral) });
 
 export function updateContact(db, id, patch = {}) {
   ensure(db);

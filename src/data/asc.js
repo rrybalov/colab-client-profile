@@ -223,7 +223,7 @@ export function summaryNote(k, staffName) {
   const concerns = SCREENING.filter((q) => isConcern(q, k.screening[q.key])).map((q) => lower(q.short));
   lines.push('Screening: ' + (!asked.length ? 'not asked.' : (concerns.length ? 'concerns with ' + concerns.join(', ') : 'no concerns') + ' (' + asked.length + ' of ' + SCREENING.length + ' asked).'));
   k.needs.forEach((n) => lines.push('Need: ' + n.name + ' (' + lower(n.urg || 'Routine') + '). Outcome: ' + lower(n.outcome || 'none chosen') + '.'));
-  k.interactions.filter((x) => x.what).forEach((x) => lines.push('Interaction: ' + x.what + '. ' + [plain(x.type), lower(x.how), x.min ? x.min + ' min' : ''].filter(Boolean).join(', ') + '.' + (x.notes ? ' ' + x.notes.trim() : '')));
+  k.interactions.filter((x) => x.what).forEach((x) => lines.push('Interaction: ' + x.what + '. ' + [plain(x.type), lower(x.how), x.min ? x.min + ' min' : ''].filter(Boolean).join(', ') + '.' + (x.referral && x.referral.name ? ' Referred to ' + x.referral.name + (x.referral.site && x.referral.site !== x.referral.name ? ', ' + x.referral.site : '') + (x.referral.phone ? ' (' + x.referral.phone + ')' : '') + '.' : '') + (x.notes ? ' ' + x.notes.trim() : '')));
   if (k.clientId) {
     if (k.followUp.ok === 'Yes') { const p = followUpPlan(k, ''); lines.push('Follow-up: OK by ' + lower(k.followUp.how) + '. 7-day on ' + usDate(p[0].due) + ', 90-day on ' + usDate(p[1].due) + '.'); }
     else lines.push(k.followUp.ok === 'No' ? 'Follow-up: declined.' : 'Follow-up: not asked.');

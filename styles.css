@@ -1269,3 +1269,42 @@ span.ipv-risk + span.ipv-risk { margin-top: 2px; }
 .ipv-status > .icon:first-child { left: 9px; }
 .ipv-status-chev { width: 28px; }
 .ipv-list .tr > :last-child { padding-left: 4px; padding-right: 2px; }
+
+/* ---------- v4.5: Find a Provider (behavioral health provider directory) ---------- */
+.asc-optional { font-size: 12px; color: var(--slate); }
+.asc-ix-ref .asc-inline-row { flex-wrap: wrap; }
+.asc-ix-ref .asc-inline-row .input { flex: 1 1 240px; min-width: 0; }
+.asc-ix-refd { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; font-size: 13px; color: var(--green-text); }
+.asc-ix-refd .icon { flex: 0 0 auto; margin-top: 2px; }
+.asc-pr-launch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 14px; padding: 12px 14px; border-radius: var(--radius); background: var(--smoke); font-size: 14px; }
+.asc-pr-wrap { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.asc-pr-crisis { display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; border-radius: var(--radius); background: #FBE7E4; color: #6B1E14; font-size: 13px; }
+.asc-pr-crisis .icon { flex: 0 0 auto; margin-top: 2px; }
+.asc-pr-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 16px; align-items: end; }
+.asc-pr-filters .field { min-width: 0; }
+.asc-pr-county { grid-column: 1 / -1; }
+.asc-pr-count { font-size: 14px; font-weight: 600; color: var(--black); }
+.asc-pr-list { display: flex; flex-direction: column; gap: 12px; }
+.asc-pr { padding: 14px 16px; border: 1px solid var(--ash); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.asc-pr-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.asc-pr-name { font-size: 16px; font-weight: 700; color: var(--black); }
+.asc-pr-verified { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--slate); }
+.asc-pr-serves { font-size: 13px; color: var(--slate); }
+.asc-pr-limits { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #7A4A00; }
+.asc-pr-limits li, .asc-pr-flag { display: flex; gap: 6px; align-items: flex-start; }
+.asc-pr-limits .icon, .asc-pr-flag .icon { flex: 0 0 auto; margin-top: 3px; }
+.asc-pr-flag { font-size: 12px; color: var(--slate); }
+.asc-pr-sites { display: flex; flex-direction: column; margin-top: 4px; border-top: 1px solid var(--hairline); }
+.asc-pr-site { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.asc-pr-site:last-child { border-bottom: 0; padding-bottom: 0; }
+.asc-pr-site-main { display: flex; flex-direction: column; gap: 3px; flex: 1 1 320px; min-width: 0; font-size: 13px; }
+.asc-pr-site-main strong { font-size: 14px; }
+.asc-pr-site.is-unsited .asc-pr-site-main strong { color: var(--slate); }
+.asc-pr-out { color: #7A4A00; font-style: normal; font-weight: 600; }
+.asc-pr-phone { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.asc-pr-svcs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.asc-pr-svc { padding: 2px 8px; border-radius: 999px; background: var(--smoke); font-size: 12px; color: var(--black); }
+.asc-pr-more { align-self: center; }
+.asc-pr-other { padding-top: 12px; border-top: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 6px; }
+.asc-pr-other .input { flex: 1 1 220px; min-width: 0; }
+.asc-pr-launch { margin: 0 0 14px; }

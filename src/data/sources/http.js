@@ -1,6 +1,6 @@
 // Data source for a real CoLab API. Endpoints and payloads are documented in docs/API.md.
 // Every response passes through the normalizers in ../schema.js.
-import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange, normalizeTeam, normalizeReassign, normalizeCloseout, normalizeDischarge, normalizeReport, normalizeReferral } from '../schema.js';
+import { normalizeSession, normalizeClient, normalizeClientSummary, normalizeNote, normalizeAction, normalizeProvider, normalizeContact, normalizeContactSummary, normalizeHistory, normalizeContactChange as contactChange, normalizeTeam, normalizeReassign, normalizeCloseout, normalizeDischarge, normalizeReport, normalizeReferral, normalizeDirectory } from '../schema.js';
 
 export class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -71,6 +71,7 @@ export function createHttpSource({ baseUrl, headers = {}, credentials = 'same-or
     decideCloseout: (id, body) => request('POST', '/asc/closeouts/' + enc(id) + '/decide', body).then(normalizeDischarge),
     dischargeClient: (clientId, body) => request('POST', '/clients/' + enc(clientId) + '/asc/discharge', body).then(normalizeDischarge),
     getStateReport: (period) => request('GET', '/asc/reports/' + enc(period)).then(normalizeReport),
+    getProviderDirectory: () => request('GET', '/asc/provider-directory').then(normalizeDirectory),
     listReferrals: () => request('GET', '/ipv/referrals').then((l) => l.map(normalizeReferral)),
     getReferral: (id) => request('GET', '/ipv/referrals/' + enc(id)).then(normalizeReferral),
     setReferralStatus: (id, status) => request('PUT', '/ipv/referrals/' + enc(id) + '/status', { status }).then(normalizeReferral),

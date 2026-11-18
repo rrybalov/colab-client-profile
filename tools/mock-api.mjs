@@ -7,6 +7,7 @@
 // --latency adds a delay to every API call; --fail makes any API path containing that text return a 500.
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildSeed } from '../src/data/seed.js';
@@ -82,6 +83,10 @@ async function handleApi(req, res, path, query) {
   }
   if (LATENCY) await new Promise((r) => setTimeout(r, LATENCY));
   if (FAIL && path.includes(FAIL)) return send(res, 500, { error: 'Mock failure for ' + path });
+  // The provider directory is a published file; the API serves it as is.
+  if (req.method === 'GET' && path === '/asc/provider-directory') {
+    try { return send(res, 200, JSON.parse(readFileSync(join(ROOT, 'data', 'bh-providers.json'), 'utf8'))); } catch (e) { return send(res, 500, { error: 'Provider directory unavailable.' }); }
+  }
   for (const [method, re, fn] of routes) {
     const m = path.match(re);
     if (!m || method !== req.method) continue;

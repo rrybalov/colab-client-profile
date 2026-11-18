@@ -13,7 +13,7 @@ import { URGENT_DESTINATIONS, URGENT_HOWS, CRISIS, OPEN, usDate, clockTime, show
 import { channelIcon, channelLabel, Badge } from './parts.jsx';
 import { ContactRecord } from './Record.jsx';
 
-const IX_SPEC = { grid: 'minmax(160px,2fr) minmax(120px,1.4fr) minmax(110px,1fr) 64px minmax(90px,1fr)', min: 620 };
+const IX_SPEC = { grid: 'minmax(150px,2fr) minmax(130px,1.6fr) minmax(110px,1.2fr) minmax(100px,1fr) 64px minmax(90px,1fr)', min: 700 };
 const KIND = { 'Open need': 'is-need', 'Action item': 'is-action' };
 
 function ContactEvent({ c, defaultOpen }) {
@@ -41,10 +41,12 @@ function ContactEvent({ c, defaultOpen }) {
             <div className="asc-span">
               <h4 className="field-label">Service interactions</h4>
               <Table label={'Service interactions on ' + c.ref} spec={IX_SPEC} empty="None documented."
-                head={['Resource or hand-off', 'Type', 'How', 'Time', 'Place'].map((h) => <div className="th" role="columnheader" key={h}>{h}</div>)}>
+                head={['Resource or hand-off', 'Referred to', 'Type', 'How', 'Time', 'Place'].map((h) => <div className="th" role="columnheader" key={h}>{h}</div>)}>
                 {c.interactions.map((x) => (
                   <div className="tr is-row is-ruled" role="row" key={x.id}>
-                    <div className="td" role="cell">{shown(x.what)}</div><div className="td" role="cell">{shown(x.type)}</div>
+                    <div className="td" role="cell">{shown(x.what)}</div>
+                    <div className="td" role="cell">{x.referral ? <>{x.referral.name}{x.referral.site && x.referral.site !== x.referral.name ? <small>{x.referral.site}</small> : null}{x.referral.phone ? <small>{x.referral.phone}</small> : null}</> : '—'}</div>
+                    <div className="td" role="cell">{shown(x.type)}</div>
                     <div className="td" role="cell">{shown(x.how)}</div><div className="td" role="cell">{x.min} min</div><div className="td" role="cell">{shown(x.place)}</div>
                   </div>
                 ))}

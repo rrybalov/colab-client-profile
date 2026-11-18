@@ -46,12 +46,14 @@ export function describePatch(k, patch) {
     patch.interactions.forEach((x) => {
       const b = before[x.id];
       const name = shown(x.what) || 'interaction';
-      if (!b) add('ix.' + x.id, 'Interaction added: ' + name);
+      if (!b) { add('ix.' + x.id, 'Interaction added: ' + name); if (x.referral && x.referral.name) add('ix.' + x.id + '.referral', 'Referred to ' + x.referral.name + ' for ' + name); }
       else {
         if (x.min !== b.min) add('ix.' + x.id + '.min', 'Minutes for ' + name + ': ' + val(x.min));
         ['type', 'how', 'place', 'need'].forEach((f) => { if (x[f] !== b[f]) add('ix.' + x.id + '.' + f, ({ type: 'Type', how: 'How', place: 'Place', need: 'Need' })[f] + ' for ' + name + ': ' + val(x[f])); });
         if (x.what !== b.what) add('ix.' + x.id + '.what', 'Interaction renamed: ' + name);
         if (x.notes !== b.notes) add('ix.' + x.id + '.notes', 'Updated notes on ' + name);
+        const was = b.referral ? b.referral.name + '|' + b.referral.site : '', now = x.referral ? x.referral.name + '|' + x.referral.site : '';
+        if (was !== now) add('ix.' + x.id + '.referral', now ? 'Referred to ' + x.referral.name + (x.referral.site && x.referral.site !== x.referral.name ? ' (' + x.referral.site + ')' : '') + ' for ' + name : 'Referral cleared on ' + name);
       }
       delete before[x.id];
     });

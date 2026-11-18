@@ -82,6 +82,7 @@ Every release is kept on its own branch, so nothing is lost:
 | `archive/v4.2` | CoLab menu navigates to each CoLab's home; contact records and logs; flags; ASC on Services; 3-day reminders |
 | `archive/v4.3` | Supervisor tools: close-out requests and discharge, reassignment, state reporting |
 | `archive/v4.4` | IPV High Risk Team Review; each CoLab's sidebar shows its own pages |
+| `archive/v4.5` | Find a Provider in the ASC Interactions step; "Referred to" on each interaction |
 
 `CHANGELOG.md` lists what changed in each.
 

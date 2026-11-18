@@ -176,3 +176,10 @@ export function useSupervisorMutations() {
     submitStateReport: useCallback((period) => source.submitStateReport(period).then((r) => { refresh(); toast('Report marked submitted'); return r; }, fail), [source, refresh, toast, fail])
   };
 }
+
+// The behavioral health provider directory: loaded once, then searched in the browser.
+export function useProviderDirectory(enabled = true) {
+  const { source } = useApi();
+  const query = useQuery(enabled ? 'provider-directory' : null, () => source.getProviderDirectory().then((data) => ({ data })));
+  return { query, directory: query.data || null };
+}
